@@ -16,4 +16,4 @@ We will implement **WebSockets** as the primary network protocol for real-time d
 * **Positive:** Eliminates HTTP header bloat, reducing bandwidth per keystroke to just a few bytes of framing data.
 * **Negative:** WebSockets introduce stateful, long-lived TCP connections. This will require us to implement specific Load Balancing strategies (Sticky Sessions) when scaling horizontally, as standard round-robin routing will break the connection state.
 
-
+   
