@@ -19,3 +19,6 @@ When a server receives a WebSocket event for a specific document, the adapter au
 * **Negative:** Introduces a new infrastructural dependency. If the Redis node crashes, cross-server real-time collaboration halts completely.
 * **Negative:** Redis Pub/Sub is "fire-and-forget." Messages are not persisted in Redis. If a client disconnects, they will miss real-time events and must rely on a combination of HTTP baseline fetching and Conflict-free Replicated Data Types (CRDTs) to merge missed changes upon reconnection.
 
+
+
+
