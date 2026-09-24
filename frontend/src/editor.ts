@@ -1,24 +1,23 @@
-import { CRDTDocument, Item } from './crdt/crdt-engine.js';
 
-const clientId = 'UserA';
+import { CRDTDocument ,Item} from './crdt-engine';
+
+
+
+const clientId = "User_" + Math.floor(Math.random() * 1000);
 const doc = new CRDTDocument();
-
 const textarea = document.getElementById('editor') as HTMLTextAreaElement;
+let previousValue = "";
 
-let previousValue = '';
+const ws = new WebSocket('ws://localhost:8080');
 
 function getVisibleItemAt(index: number): Item | null {
-  if (index < 0) {
-    return null;
-  }
-  let currentIndex = 0;
+  if (index < 0) return null;
   let current = doc.head;
+  let seen = 0;
   while (current !== null) {
     if (!current.deleted) {
-      if (currentIndex === index) {
-        return current;
-      }
-      currentIndex++;
+      if (seen === index) return current;
+      seen++;
     }
     current = current.right;
   }
@@ -28,44 +27,57 @@ function getVisibleItemAt(index: number): Item | null {
 textarea.addEventListener('input', () => {
   const newValue = textarea.value;
   const cursorPosition = textarea.selectionStart;
+  const lengthDiff = newValue.length - previousValue.length;
 
-  if (newValue.length > previousValue.length) {
-    const char = newValue.charAt(cursorPosition - 1);
-    const anchor = getVisibleItemAt(cursorPosition - 2);
-    const clock = doc.tick();
-    const anchorClientId = anchor ? anchor.clientId : null;
-    const anchorClock = anchor ? anchor.clock : null;
+  if (lengthDiff > 0) {
+    const insertedChar = newValue.substring(cursorPosition - lengthDiff, cursorPosition);
+    const anchorIndex = cursorPosition - lengthDiff - 1;
+    const anchorItem = getVisibleItemAt(anchorIndex);
+    const anchorId = anchorItem ? anchorItem.clientId : null;
+    const anchorClock = anchorItem ? anchorItem.clock : null;
 
-    doc.insert(clientId, clock, anchorClientId, anchorClock, char);
+    const newClock = doc.tick();
+    doc.insert(clientId, newClock, anchorId, anchorClock, insertedChar);
 
-    const operation = {
+    ws.send(JSON.stringify({
       type: 'insert',
       clientId: clientId,
-      clock: clock,
-      anchorClientId: anchorClientId,
+      clock: newClock,
+      anchorClientId: anchorId,
       anchorClock: anchorClock,
-      value: char
-    };
-
-    console.log(operation);
-  } else if (newValue.length < previousValue.length) {
-    const item = getVisibleItemAt(cursorPosition);
-    if (item) {
-      doc.tick();
-      doc.delete(item.clientId, item.clock);
-
-      const operation = {
+      value: insertedChar
+    }));
+  } else if (lengthDiff < 0) {
+    const deletedItem = getVisibleItemAt(cursorPosition);
+    if (deletedItem) {
+      doc.delete(deletedItem.clientId, deletedItem.clock);
+      
+      ws.send(JSON.stringify({
         type: 'delete',
-        clientId: item.clientId,
-        clock: item.clock
-      };
-
-      console.log(operation);
+        clientId: deletedItem.clientId,
+        clock: deletedItem.clock
+      }));
     }
   }
 
-  const renderedText = doc.renderText();
-  textarea.value = renderedText;
+  textarea.value = doc.renderText();
+  previousValue = textarea.value;
   textarea.setSelectionRange(cursorPosition, cursorPosition);
-  previousValue = renderedText;
 });
+
+ws.addEventListener('message', (event) => {
+  const op = JSON.parse(event.data);
+  
+  if (op.type === 'insert') {
+    doc.insert(op.clientId, op.clock, op.anchorClientId, op.anchorClock, op.value);
+  } else if (op.type === 'delete') {
+    doc.delete(op.clientId, op.clock);
+  }
+
+  const cursorPosition = textarea.selectionStart;
+  
+  textarea.value = doc.renderText();
+  previousValue = textarea.value;
+  textarea.setSelectionRange(cursorPosition, cursorPosition);
+});
+

@@ -5,13 +5,18 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node src/crdt/crdt-engine.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }
