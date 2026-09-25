@@ -1,5 +1,5 @@
 
-import { CRDTDocument ,Item} from './crdt-engine';
+import { CRDTDocument ,Item} from './crdt-engine.js';
 
 
 

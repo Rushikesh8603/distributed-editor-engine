@@ -19,5 +19,3 @@ wss.on('connection', (ws) => {
     });
 });
 //# sourceMappingURL=server.js.map
-
-
