@@ -1,4 +1,16 @@
 export class Item {
+    clientId;
+    clock;
+    val;
+    // ─── ADDED: ORIGIN TRACKING FOR SNAPSHOTS ───
+    // We now save the anchor data permanently. If a new user joins tomorrow, 
+    // they need to know exactly where this item was originally anchored 
+    // so they can accurately reconstruct the document.
+    anchorClientId;
+    anchorClock;
+    deleted;
+    left;
+    right;
     constructor(clientId, clock, val, anchorClientId = null, anchorClock = null, deleted = false, left = null, right = null) {
         this.clientId = clientId;
         this.clock = clock;
@@ -11,15 +23,13 @@ export class Item {
     }
 }
 export class CRDTDocument {
-    constructor() {
-        this.structStore = new Map();
-        this.head = null;
-        this.tail = null;
-        // ─── ADDED: LAMPORT CLOCK TRACKER ───
-        // Tracks the highest clock seen by this device. 
-        // Use `doc.tick()` when typing locally to get your next clock number.
-        this.localClock = 0;
-    }
+    structStore = new Map();
+    head = null;
+    tail = null;
+    // ─── ADDED: LAMPORT CLOCK TRACKER ───
+    // Tracks the highest clock seen by this device. 
+    // Use `doc.tick()` when typing locally to get your next clock number.
+    localClock = 0;
     tick() {
         this.localClock++;
         return this.localClock;

@@ -1,17 +1,16 @@
 {
   "compilerOptions": {
-    // File Layout (Uncommented so tsc knows where to read and write)
+    // File Layout
     "rootDir": "./src",
     "outDir": "./dist",
 
-    // Environment Settings (Updated for Browser ES Modules)
-    "module": "ES2020",
-    "target": "ES2020",
+    // Environment Settings (Upgraded for Node.js backend & Browser ES Modules)
+    "module": "NodeNext",
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
 
-    
-    // CRITICAL: We need "DOM" so TypeScript recognizes document.getElementById and HTMLTextAreaElement
-    "lib": ["ES2020", "DOM"], 
-    "types": [],
+    // CRITICAL: Keep "DOM" for the browser editor, and support modern JS/Node
+    "lib": ["ES2022", "DOM"], 
 
     // Other Outputs
     "sourceMap": true,
@@ -24,15 +23,12 @@
 
     // Recommended Options
     "strict": true,
-    // "jsx": "react-jsx", <-- Commented out for now since we are using Vanilla HTML
     "isolatedModules": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
   
-  // Explicitly tell TypeScript to compile everything inside the src folder
   "include": ["src/**/*"]
 }
-
 
