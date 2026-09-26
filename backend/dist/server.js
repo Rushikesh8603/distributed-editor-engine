@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -5,7 +6,8 @@ import { parse } from 'url';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
-const MONGO_URI = "mongodb://localhost:27017/crdt-editor";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/crdt-editor";
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
 // 1. Connect to MongoDB
 mongoose.connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB successfully.'))
@@ -48,6 +50,6 @@ wss.on('connection', (ws, req, docId) => {
             rooms.delete(docId);
     });
 });
-server.listen(8080, () => {
-    console.log('Backend Server running on http://localhost:8080');
+server.listen(PORT, () => {
+    console.log(`Backend Server running on http://localhost:${PORT}`);
 });
