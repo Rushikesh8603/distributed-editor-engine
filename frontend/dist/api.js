@@ -1,26 +1,25 @@
+import { state } from './state.js';
 const API_BASE_URL = 'http://localhost:8080/api';
-export async function apiRequest(endpoint, method, data, token = null) {
+export async function apiRequest(endpoint, method = 'GET', data, token) {
+    const authToken = token || state.getToken();
     const headers = {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
     };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
     }
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            method,
-            headers,
-            body: JSON.stringify(data),
-        });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || 'Something went wrong');
-        }
-        return result;
+    const options = {
+        method,
+        headers
+    };
+    if (method !== 'GET' && data) {
+        options.body = JSON.stringify(data);
     }
-    catch (error) {
-        console.error('API Error:', error);
-        throw error;
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.error || 'Something went wrong');
     }
+    return result;
 }
 //# sourceMappingURL=api.js.map

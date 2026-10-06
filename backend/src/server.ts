@@ -5,7 +5,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { parse } from 'url';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import authRoutes from './routes/auth.js';
+import authRoutes, { JWT_SECRET } from './routes/auth.js';
+import docRoutes from './routes/docs.js';
+import jwt from 'jsonwebtoken';
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/crdt-editor";
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
@@ -22,6 +24,7 @@ app.use(cors());
 
 // Route Traffic
 app.use('/api', authRoutes);
+app.use('/api/docs', docRoutes);
 
 // 3. Create HTTP Server
 const server = http.createServer(app);
@@ -33,20 +36,35 @@ const rooms = new Map<string, Set<WebSocket>>();
 server.on('upgrade', (request, socket, head) => {
   const parameters = parse(request.url || '', true);
   const docId = (parameters.query.docId as string) || 'default-room';
+  const token = (parameters.query.token as string) || '';
 
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request, docId);
-  });
+  try {
+    const user = jwt.verify(token, JWT_SECRET);
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request, docId, user);
+    });
+  } catch (err) {
+    try {
+      const user = jwt.verify(token, "super_secret_jwt_key_change_in_production");
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request, docId, user);
+      });
+    } catch (e) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+    }
+  }
 });
 
-wss.on('connection', (ws: WebSocket, req: any, docId: string) => {
+wss.on('connection', (ws: WebSocket, req: any, docId: string, user: any) => {
   if (!rooms.has(docId)) {
     rooms.set(docId, new Set());
   }
   
   const room = rooms.get(docId)!;
   room.add(ws);
-  console.log(`Client joined room: ${docId}. Active in room: ${room.size}`);
+  const username = user?.username || 'Collaborator';
+  console.log(`User ${username} joined room: ${docId}. Active in room: ${room.size}`);
 
   ws.on('message', (message) => {
     for (const client of room) {

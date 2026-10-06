@@ -1,21 +1,33 @@
 import { state } from './state.js';
 import { renderAuthView } from './views/authView.js';
 import { renderEditorView } from './views/editorView.js';
+import { renderDashboardView } from './views/dashboardView.js';
 function initRouter() {
-    if (state.isAuthenticated()) {
+    if (!state.isAuthenticated()) {
+        renderAuthView(() => {
+            initRouter();
+        });
+        return;
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('docId');
+    if (docId) {
         renderEditorView(() => {
-            // Callback when user logs out
             initRouter();
         });
     }
     else {
-        renderAuthView(() => {
-            // Callback when user logs in successfully
+        renderDashboardView(() => {
+            initRouter();
+        }, (selectedDocId) => {
+            window.history.pushState({}, '', `/?docId=${selectedDocId}`);
             initRouter();
         });
     }
 }
-// Boot the application on initial load
+window.addEventListener('popstate', () => {
+    initRouter();
+});
 document.addEventListener('DOMContentLoaded', () => {
     initRouter();
 });

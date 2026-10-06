@@ -2,17 +2,12 @@ export class Item {
   public clientId: string;
   public clock: number;
   public val: string;
-
-  // ─── ADDED: ORIGIN TRACKING FOR SNAPSHOTS ───
-  // We now save the anchor data permanently. If a new user joins tomorrow, 
-  // they need to know exactly where this item was originally anchored 
-  // so they can accurately reconstruct the document.
   public anchorClientId: string | null;
   public anchorClock: number | null;
-
   public deleted: boolean;
   public left: Item | null;
   public right: Item | null;
+  public attributes: Record<string, any>;
 
   constructor(
     clientId: string,
@@ -22,7 +17,8 @@ export class Item {
     anchorClock: number | null = null,
     deleted: boolean = false,
     left: Item | null = null,
-    right: Item | null = null
+    right: Item | null = null,
+    attributes: Record<string, any> = {}
   ) {
     this.clientId = clientId;
     this.clock = clock;
@@ -32,6 +28,7 @@ export class Item {
     this.deleted = deleted;
     this.left = left;
     this.right = right;
+    this.attributes = attributes;
   }
 }
 
@@ -84,34 +81,25 @@ export class CRDTDocument {
     clock: number,
     anchorClientId: string | null,
     anchorClock: number | null,
-    value: string
+    value: string,
+    attributes: Record<string, any> = {}
   ): Item {
-    // ─── BUG FIX 2: IDEMPOTENCY ───
-    // If the network stutters and delivers the same keystroke twice, 
-    // we catch it here and ignore it to prevent duplicating letters.
     const existing = this.findItemByClock(clientId, clock);
     if (existing) {
       return existing;
     }
 
-    // ─── LAMPORT CLOCK SYNC ───
-    // If this operation came from someone else over the network, 
-    // we instantly fast-forward our clock to stay perfectly in sync.
     this.localClock = Math.max(this.localClock, clock);
 
     let anchor: Item | null = null;
     if (anchorClientId !== null && anchorClock !== null) {
       anchor = this.findItemByClock(anchorClientId, anchorClock);
       if (!anchor) {
-        // Causal Delivery Guard: If the anchor hasn't arrived yet due to 
-        // network routing, we throw an error. The networking layer should 
-        // catch this, put this operation in a waiting queue, and retry later.
         throw new Error(`Anchor item not found: client "${anchorClientId}" at clock ${anchorClock}`);
       }
     }
 
-    // Pass the anchor IDs into the Item so they are permanently saved
-    const newItem = new Item(clientId, clock, value, anchorClientId, anchorClock);
+    const newItem = new Item(clientId, clock, value, anchorClientId, anchorClock, false, null, null, attributes);
 
     // ─── BUG FIX 1: UNIFIED TIE-BREAKER LOOP ───
     // A null anchor just means the "virtual root" (beginning of the document).
@@ -179,6 +167,112 @@ export class CRDTDocument {
     }
 
     return parts.join('');
+  }
+
+  public format(
+    startClientId: string,
+    startClock: number,
+    endClientId: string,
+    endClock: number,
+    attributes: Record<string, any>
+  ): void {
+    const startItem = this.findItemByClock(startClientId, startClock);
+    const endItem = this.findItemByClock(endClientId, endClock);
+    if (!startItem || !endItem) {
+      return;
+    }
+
+    let current: Item | null = startItem;
+    while (current !== null) {
+      if (!current.deleted) {
+        for (const key of Object.keys(attributes)) {
+          if (attributes[key] === null || attributes[key] === false) {
+            delete current.attributes[key];
+          } else {
+            current.attributes[key] = attributes[key];
+          }
+        }
+      }
+      if (current === endItem) {
+        break;
+      }
+      current = current.right;
+    }
+  }
+
+  public renderHTML(): string {
+    const parts: string[] = [];
+    let current = this.head;
+
+    while (current !== null) {
+      if (!current.deleted) {
+        let val = current.val;
+        if (val === '\n') {
+          parts.push('<br>');
+          current = current.right;
+          continue;
+        }
+        if (val === ' ') {
+          val = '&nbsp;';
+        }
+
+        const attrs = current.attributes || {};
+        const styles: string[] = [];
+
+        if (attrs.bold) styles.push('font-weight: bold;');
+        if (attrs.italic) styles.push('font-style: italic;');
+        if (attrs.underline && attrs.strike) styles.push('text-decoration: underline line-through;');
+        else if (attrs.underline) styles.push('text-decoration: underline;');
+        else if (attrs.strike) styles.push('text-decoration: line-through;');
+
+        if (attrs.font) styles.push(`font-family: ${attrs.font};`);
+        if (attrs.size) styles.push(`font-size: ${attrs.size};`);
+        if (attrs.color) styles.push(`color: ${attrs.color};`);
+        if (attrs.background) styles.push(`background-color: ${attrs.background};`);
+        if (attrs.code) styles.push('font-family: monospace; background: #f1f3f4; padding: 1px 4px; border-radius: 3px; font-size: 0.9em;');
+
+        let formatted = val;
+        if (styles.length > 0) {
+          formatted = `<span style="${styles.join(' ')}">${formatted}</span>`;
+        }
+
+        if (attrs.script === 'sub') {
+          formatted = `<sub>${formatted}</sub>`;
+        } else if (attrs.script === 'super') {
+          formatted = `<sup>${formatted}</sup>`;
+        }
+
+        parts.push(formatted);
+      }
+      current = current.right;
+    }
+
+    return parts.join('');
+  }
+
+  public renderDelta(): Array<{ insert: string; attributes?: Record<string, any> }> {
+    const delta: Array<{ insert: string; attributes?: Record<string, any> }> = [];
+    let current = this.head;
+
+    while (current !== null) {
+      if (!current.deleted) {
+        const attrs = current.attributes || {};
+        const last = delta[delta.length - 1];
+        const sameAttrs = last && JSON.stringify(last.attributes || {}) === JSON.stringify(attrs);
+
+        if (last && sameAttrs) {
+          last.insert += current.val;
+        } else {
+          delta.push({
+            insert: current.val,
+            ...(Object.keys(attrs).length > 0 ? { attributes: { ...attrs } } : {})
+          });
+        }
+      }
+      current = current.right;
+    }
+
+    return delta;
   }
 
   private addToStructStore(item: Item): void {

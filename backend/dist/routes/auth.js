@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 const router = Router();
-const JWT_SECRET = "super_secret_jwt_key_change_in_production";
+export const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_change_in_production";
 // SIGNUP ROUTE: POST /api/signup
 router.post('/signup', async (req, res) => {
     try {

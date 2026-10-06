@@ -1,31 +1,33 @@
+import { state } from './state.js';
+
 const API_BASE_URL = 'http://localhost:8080/api';
 
-export async function apiRequest(endpoint: string, method: string, data: object, token: string | null = null) {
+export async function apiRequest(endpoint: string, method: string = 'GET', data?: any, token?: string | null) {
+  const authToken = token || state.getToken();
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method,
-      headers,
-      body: JSON.stringify(data),
-    });
+  const options: RequestInit = {
+    method,
+    headers
+  };
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.error || 'Something went wrong');
-    }
-
-    return result;
-  } catch (error: any) {
-    console.error('API Error:', error);
-    throw error;
+  if (method !== 'GET' && data) {
+    options.body = JSON.stringify(data);
   }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Something went wrong');
+  }
+
+  return result;
 }
-

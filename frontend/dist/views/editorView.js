@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { CRDTDocument } from '../crdt-engine.js';
 export function renderEditorView(onLogout) {
     const app = document.getElementById('app');
     if (!app)
@@ -258,7 +259,7 @@ export function renderEditorView(onLogout) {
     <header class="gdoc-header">
       <div class="gdoc-header-left">
         <!-- Google Docs Document Logo -->
-        <svg class="gdoc-logo" viewBox="0 0 48 48">
+        <svg id="back-to-dash" class="gdoc-logo" title="Docs home" viewBox="0 0 48 48">
           <defs>
             <linearGradient id="headerDocGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#4285F4" />
@@ -340,20 +341,38 @@ export function renderEditorView(onLogout) {
         <option>Heading 1</option>
         <option>Heading 2</option>
       </select>
-      <select class="gdoc-select" title="Font">
-        <option>Arial</option>
-        <option>Roboto</option>
-        <option>Georgia</option>
-        <option>Times New Roman</option>
-        <option>Courier New</option>
+      <select id="font-select" class="gdoc-select" title="Font">
+        <option value="Roboto">Roboto</option>
+        <option value="Arial">Arial</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Courier New">Courier New</option>
+      </select>
+      <select id="size-select" class="gdoc-select" title="Font size">
+        <option value="11pt">11pt</option>
+        <option value="14pt">14pt</option>
+        <option value="18pt">18pt</option>
+        <option value="24pt">24pt</option>
+        <option value="36pt">36pt</option>
       </select>
       <div class="gdoc-divider"></div>
-      <button class="gdoc-tool-btn" title="Bold (Ctrl+B)" style="font-weight: 700;" type="button">B</button>
-      <button class="gdoc-tool-btn" title="Italic (Ctrl+I)" style="font-style: italic; font-family: serif;" type="button">I</button>
-      <button class="gdoc-tool-btn" title="Underline (Ctrl+U)" style="text-decoration: underline;" type="button">U</button>
-      <button class="gdoc-tool-btn" title="Text color" type="button">
+      <button id="btn-bold" class="gdoc-tool-btn" title="Bold (Ctrl+B)" style="font-weight: 700;" type="button">B</button>
+      <button id="btn-italic" class="gdoc-tool-btn" title="Italic (Ctrl+I)" style="font-style: italic; font-family: serif;" type="button">I</button>
+      <button id="btn-underline" class="gdoc-tool-btn" title="Underline (Ctrl+U)" style="text-decoration: underline;" type="button">U</button>
+      <button id="btn-strike" class="gdoc-tool-btn" title="Strikethrough" style="text-decoration: line-through;" type="button">S</button>
+      <button id="btn-code" class="gdoc-tool-btn" title="Inline Code" style="font-family: monospace; font-size: 11px;" type="button">&lt;/&gt;</button>
+      <div class="gdoc-divider"></div>
+      <input type="color" id="input-color" style="display:none;" value="#ea4335" />
+      <button id="btn-color" class="gdoc-tool-btn" title="Text color" type="button">
         <span style="border-bottom: 3px solid #1a73e8; font-weight: 700; line-height: 1;">A</span>
       </button>
+      <input type="color" id="input-highlight" style="display:none;" value="#fef08a" />
+      <button id="btn-highlight" class="gdoc-tool-btn" title="Highlight color" type="button">
+        <span style="background: #fef08a; padding: 0 4px; font-weight: 700; border-radius: 2px;">H</span>
+      </button>
+      <div class="gdoc-divider"></div>
+      <button id="btn-sub" class="gdoc-tool-btn" title="Subscript" type="button">X₂</button>
+      <button id="btn-super" class="gdoc-tool-btn" title="Superscript" type="button">X²</button>
       <div class="gdoc-divider"></div>
       <button class="gdoc-tool-btn" title="Align left" type="button">
         <svg viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>
@@ -376,20 +395,337 @@ export function renderEditorView(onLogout) {
     <!-- Writing Canvas (Paper Sheet View) -->
     <main class="gdoc-canvas-area">
       <div class="gdoc-paper">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #f1f3f4; padding-bottom: 8px;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #5f6368; font-weight: 600; letter-spacing: 0.5px;">Document Canvas</div>
+          <div style="display: flex; gap: 6px;">
+            <button id="view-mode-edit" class="gdoc-tool-btn" style="background: #e8f0fe; color: #1a73e8; font-weight: 500; font-size: 12px; padding: 2px 10px; border-radius: 12px;" type="button">Edit Mode</button>
+            <button id="view-mode-rich" class="gdoc-tool-btn" style="color: #5f6368; font-size: 12px; padding: 2px 10px; border-radius: 12px;" type="button">Styled View</button>
+          </div>
+        </div>
         <textarea id="editor" class="gdoc-textarea" placeholder="Start typing your document here... Changes will sync in real-time." spellcheck="true"></textarea>
+        <div id="rich-view" style="display: none; width: 100%; flex: 1; min-height: 850px; line-height: 1.6; font-size: 15px; outline: none; padding: 0; margin: 0; word-break: break-word; font-family: 'Roboto', sans-serif;"></div>
       </div>
     </main>
   `;
-    // Handle Logout
-    document.getElementById('logout-btn')?.addEventListener('click', () => {
-        state.clearToken();
+    const clientId = username + "_" + Math.floor(Math.random() * 1000);
+    const doc = new CRDTDocument();
+    const textarea = document.getElementById('editor');
+    const richView = document.getElementById('rich-view');
+    const titleInput = document.querySelector('.gdoc-doc-name');
+    const shareBtn = document.querySelector('.gdoc-share-btn');
+    const btnEdit = document.getElementById('view-mode-edit');
+    const btnRich = document.getElementById('view-mode-rich');
+    let previousValue = "";
+    const token = state.getToken() || "";
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('docId') || 'default-room';
+    const ws = new WebSocket(`ws://localhost:8080?docId=${encodeURIComponent(docId)}&token=${encodeURIComponent(token)}`);
+    const pendingOps = [];
+    function updateRichView() {
+        if (richView) {
+            richView.innerHTML = doc.renderHTML() || '<span style="color: #80868b; font-style: italic;">Empty document</span>';
+        }
+    }
+    if (docId && docId !== 'default-room') {
+        fetch(`http://localhost:8080/api/docs/${docId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+            .then((res) => res.json())
+            .then((data) => {
+            if (data.title && titleInput) {
+                titleInput.value = data.title;
+            }
+            if (data.content && doc.renderText() === "") {
+                let prevClock = null;
+                for (let i = 0; i < data.content.length; i++) {
+                    const char = data.content[i];
+                    const clock = doc.tick();
+                    doc.insert('init', clock, prevClock !== null ? 'init' : null, prevClock, char);
+                    prevClock = clock;
+                }
+                textarea.value = doc.renderText();
+                previousValue = textarea.value;
+                updateRichView();
+            }
+        })
+            .catch(() => { });
+    }
+    function getVisibleItemAt(index) {
+        if (index < 0)
+            return null;
+        let current = doc.head;
+        let seen = 0;
+        while (current !== null) {
+            if (!current.deleted) {
+                if (seen === index)
+                    return current;
+                seen++;
+            }
+            current = current.right;
+        }
+        return null;
+    }
+    function applyFormatToSelection(attributes) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start >= end) {
+            return;
+        }
+        const startItem = getVisibleItemAt(start);
+        const endItem = getVisibleItemAt(end - 1);
+        if (!startItem || !endItem) {
+            return;
+        }
+        doc.format(startItem.clientId, startItem.clock, endItem.clientId, endItem.clock, attributes);
+        updateRichView();
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'format',
+                startClientId: startItem.clientId,
+                startClock: startItem.clock,
+                endClientId: endItem.clientId,
+                endClock: endItem.clock,
+                attributes: attributes
+            }));
+        }
+    }
+    function toggleStyle(key, value = true) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start >= end)
+            return;
+        const startItem = getVisibleItemAt(start);
+        if (!startItem)
+            return;
+        const isCurrentlyActive = Boolean(startItem.attributes && startItem.attributes[key]);
+        const attrs = {};
+        attrs[key] = isCurrentlyActive ? false : value;
+        applyFormatToSelection(attrs);
+    }
+    function toggleScript(targetScript) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start >= end)
+            return;
+        const startItem = getVisibleItemAt(start);
+        if (!startItem)
+            return;
+        const currentScript = startItem.attributes ? startItem.attributes['script'] : null;
+        const attrs = {};
+        if (currentScript === targetScript) {
+            attrs['script'] = null;
+        }
+        else {
+            attrs['script'] = targetScript;
+        }
+        applyFormatToSelection(attrs);
+    }
+    document.getElementById('btn-bold')?.addEventListener('click', () => toggleStyle('bold', true));
+    document.getElementById('btn-italic')?.addEventListener('click', () => toggleStyle('italic', true));
+    document.getElementById('btn-underline')?.addEventListener('click', () => toggleStyle('underline', true));
+    document.getElementById('btn-strike')?.addEventListener('click', () => toggleStyle('strike', true));
+    document.getElementById('btn-code')?.addEventListener('click', () => toggleStyle('code', true));
+    document.getElementById('btn-sub')?.addEventListener('click', () => toggleScript('sub'));
+    document.getElementById('btn-super')?.addEventListener('click', () => toggleScript('super'));
+    const fontSelect = document.getElementById('font-select');
+    fontSelect?.addEventListener('change', () => {
+        applyFormatToSelection({ font: fontSelect.value });
+    });
+    const sizeSelect = document.getElementById('size-select');
+    sizeSelect?.addEventListener('change', () => {
+        applyFormatToSelection({ size: sizeSelect.value });
+    });
+    const btnColor = document.getElementById('btn-color');
+    const inputColor = document.getElementById('input-color');
+    btnColor?.addEventListener('click', () => inputColor?.click());
+    inputColor?.addEventListener('input', () => {
+        applyFormatToSelection({ color: inputColor.value });
+    });
+    const btnHighlight = document.getElementById('btn-highlight');
+    const inputHighlight = document.getElementById('input-highlight');
+    btnHighlight?.addEventListener('click', () => inputHighlight?.click());
+    inputHighlight?.addEventListener('input', () => {
+        applyFormatToSelection({ background: inputHighlight.value });
+    });
+    btnEdit?.addEventListener('click', () => {
+        textarea.style.display = 'block';
+        if (richView)
+            richView.style.display = 'none';
+        if (btnEdit) {
+            btnEdit.style.background = '#e8f0fe';
+            btnEdit.style.color = '#1a73e8';
+            btnEdit.style.fontWeight = '500';
+        }
+        if (btnRich) {
+            btnRich.style.background = 'transparent';
+            btnRich.style.color = '#5f6368';
+            btnRich.style.fontWeight = '400';
+        }
+    });
+    btnRich?.addEventListener('click', () => {
+        updateRichView();
+        textarea.style.display = 'none';
+        if (richView)
+            richView.style.display = 'block';
+        if (btnRich) {
+            btnRich.style.background = '#e8f0fe';
+            btnRich.style.color = '#1a73e8';
+            btnRich.style.fontWeight = '500';
+        }
+        if (btnEdit) {
+            btnEdit.style.background = 'transparent';
+            btnEdit.style.color = '#5f6368';
+            btnEdit.style.fontWeight = '400';
+        }
+    });
+    titleInput?.addEventListener('change', async () => {
+        if (!docId || docId === 'default-room')
+            return;
+        try {
+            await fetch(`http://localhost:8080/api/docs/${docId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ title: titleInput.value })
+            });
+        }
+        catch (e) { }
+    });
+    shareBtn?.addEventListener('click', async () => {
+        const targetUser = prompt('Enter username to share this document with:');
+        if (!targetUser)
+            return;
+        try {
+            const res = await fetch(`http://localhost:8080/api/docs/${docId}/share`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ username: targetUser })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`Document shared successfully with ${targetUser}`);
+            }
+            else {
+                alert(data.error || 'Failed to share document');
+            }
+        }
+        catch (e) {
+            alert('Error sharing document');
+        }
+    });
+    function canApplyOperation(op) {
+        if (op.type === 'insert') {
+            return op.anchorClock === null || doc.findItemByClock(op.anchorClientId, op.anchorClock) !== null;
+        }
+        if (op.type === 'delete') {
+            return doc.findItemByClock(op.clientId, op.clock) !== null;
+        }
+        if (op.type === 'format') {
+            const hasStart = doc.findItemByClock(op.startClientId, op.startClock) !== null;
+            const hasEnd = doc.findItemByClock(op.endClientId, op.endClock) !== null;
+            return hasStart && hasEnd;
+        }
+        return true;
+    }
+    function applyOperation(op) {
+        if (op.type === 'insert') {
+            doc.insert(op.clientId, op.clock, op.anchorClientId, op.anchorClock, op.value, op.attributes || {});
+        }
+        else if (op.type === 'delete') {
+            doc.delete(op.clientId, op.clock);
+        }
+        else if (op.type === 'format') {
+            doc.format(op.startClientId, op.startClock, op.endClientId, op.endClock, op.attributes);
+        }
+        const currentCursor = textarea.selectionStart;
+        textarea.value = doc.renderText();
+        previousValue = textarea.value;
+        textarea.setSelectionRange(currentCursor, currentCursor);
+        updateRichView();
+    }
+    function processPendingQueue() {
+        let processedAny = false;
+        for (let i = 0; i < pendingOps.length; i++) {
+            const op = pendingOps[i];
+            if (canApplyOperation(op)) {
+                pendingOps.splice(i, 1);
+                i--;
+                applyOperation(op);
+                processedAny = true;
+            }
+        }
+        if (processedAny) {
+            processPendingQueue();
+        }
+    }
+    textarea.addEventListener('input', () => {
+        const newValue = textarea.value;
+        const cursorPosition = textarea.selectionStart;
+        const lengthDiff = newValue.length - previousValue.length;
+        if (lengthDiff > 0) {
+            const insertedChar = newValue.substring(cursorPosition - lengthDiff, cursorPosition);
+            const anchorIndex = cursorPosition - lengthDiff - 1;
+            const anchorItem = getVisibleItemAt(anchorIndex);
+            const anchorId = anchorItem ? anchorItem.clientId : null;
+            const anchorClock = anchorItem ? anchorItem.clock : null;
+            const newClock = doc.tick();
+            doc.insert(clientId, newClock, anchorId, anchorClock, insertedChar);
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'insert',
+                    clientId: clientId,
+                    clock: newClock,
+                    anchorClientId: anchorId,
+                    anchorClock: anchorClock,
+                    value: insertedChar
+                }));
+            }
+        }
+        else if (lengthDiff < 0) {
+            const deletedItem = getVisibleItemAt(cursorPosition);
+            if (deletedItem) {
+                doc.delete(deletedItem.clientId, deletedItem.clock);
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'delete',
+                        clientId: deletedItem.clientId,
+                        clock: deletedItem.clock
+                    }));
+                }
+            }
+        }
+        textarea.value = doc.renderText();
+        previousValue = textarea.value;
+        textarea.setSelectionRange(cursorPosition, cursorPosition);
+        updateRichView();
+    });
+    ws.addEventListener('message', (event) => {
+        const op = JSON.parse(event.data);
+        if (canApplyOperation(op)) {
+            applyOperation(op);
+            processPendingQueue();
+        }
+        else {
+            pendingOps.push(op);
+        }
+    });
+    document.getElementById('back-to-dash')?.addEventListener('click', () => {
+        ws.close();
+        window.history.pushState({}, '', '/');
         onLogout();
     });
-    // Placeholder for connecting your CRDT engine & WebSocket connection
-    const editorTextarea = document.getElementById('editor');
-    editorTextarea.addEventListener('input', () => {
-        // We will wire up your CRDT local mutation engine here next!
-        console.log('User typed:', editorTextarea.value);
+    document.getElementById('logout-btn')?.addEventListener('click', () => {
+        ws.close();
+        state.clearToken();
+        window.history.pushState({}, '', '/');
+        onLogout();
     });
 }
 //# sourceMappingURL=editorView.js.map
