@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "tsc && node dev-server.js",
+    "start": "node dev-server.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node src/crdt/crdt-engine.test.js"

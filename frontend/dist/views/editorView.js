@@ -284,7 +284,7 @@ export function renderEditorView(onLogout) {
               <svg class="gdoc-status-icon" viewBox="0 0 24 24">
                 <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM10 15l-3.5-3.5 1.41-1.41L10 12.17l5.59-5.59L17 8l-7 7z"/>
               </svg>
-              <span>All changes saved</span>
+              <span id="save-status-text">All changes saved</span>
             </div>
           </div>
           <div class="gdoc-menu-row">
@@ -421,6 +421,54 @@ export function renderEditorView(onLogout) {
     const docId = urlParams.get('docId') || 'default-room';
     const ws = new WebSocket(`ws://localhost:8080?docId=${encodeURIComponent(docId)}&token=${encodeURIComponent(token)}`);
     const pendingOps = [];
+    let autoSaveTimer = null;
+    function setSaveStatus(status) {
+        const statusSpan = document.getElementById('save-status-text');
+        if (!statusSpan)
+            return;
+        if (status === 'saving') {
+            statusSpan.textContent = 'Saving...';
+            statusSpan.style.color = '#e37400';
+        }
+        else if (status === 'saved') {
+            statusSpan.textContent = 'All changes saved';
+            statusSpan.style.color = '#5f6368';
+        }
+        else if (status === 'error') {
+            statusSpan.textContent = 'Save failed';
+            statusSpan.style.color = '#d93025';
+        }
+    }
+    function triggerAutoSave() {
+        if (!docId || docId === 'default-room')
+            return;
+        setSaveStatus('saving');
+        if (autoSaveTimer) {
+            clearTimeout(autoSaveTimer);
+        }
+        autoSaveTimer = setTimeout(async () => {
+            try {
+                const deltaData = JSON.stringify(doc.renderDelta());
+                const res = await fetch(`http://localhost:8080/api/docs/${docId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ content: deltaData })
+                });
+                if (res.ok) {
+                    setSaveStatus('saved');
+                }
+                else {
+                    setSaveStatus('error');
+                }
+            }
+            catch (e) {
+                setSaveStatus('error');
+            }
+        }, 1000);
+    }
     function updateRichView() {
         if (richView) {
             richView.innerHTML = doc.renderHTML() || '<span style="color: #80868b; font-style: italic;">Empty document</span>';
@@ -438,12 +486,29 @@ export function renderEditorView(onLogout) {
                 titleInput.value = data.title;
             }
             if (data.content && doc.renderText() === "") {
+                let deltaChunks = [];
+                try {
+                    const parsed = JSON.parse(data.content);
+                    if (Array.isArray(parsed)) {
+                        deltaChunks = parsed;
+                    }
+                    else {
+                        deltaChunks = [{ insert: data.content }];
+                    }
+                }
+                catch {
+                    deltaChunks = [{ insert: data.content }];
+                }
                 let prevClock = null;
-                for (let i = 0; i < data.content.length; i++) {
-                    const char = data.content[i];
-                    const clock = doc.tick();
-                    doc.insert('init', clock, prevClock !== null ? 'init' : null, prevClock, char);
-                    prevClock = clock;
+                for (const chunk of deltaChunks) {
+                    const text = chunk.insert || '';
+                    const attrs = chunk.attributes || {};
+                    for (let i = 0; i < text.length; i++) {
+                        const char = text.charAt(i);
+                        const clock = doc.tick();
+                        doc.insert('init', clock, prevClock !== null ? 'init' : null, prevClock, char, { ...attrs });
+                        prevClock = clock;
+                    }
                 }
                 textarea.value = doc.renderText();
                 previousValue = textarea.value;
@@ -480,6 +545,7 @@ export function renderEditorView(onLogout) {
         }
         doc.format(startItem.clientId, startItem.clock, endItem.clientId, endItem.clock, attributes);
         updateRichView();
+        triggerAutoSave();
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
                 type: 'format',
@@ -649,6 +715,7 @@ export function renderEditorView(onLogout) {
         previousValue = textarea.value;
         textarea.setSelectionRange(currentCursor, currentCursor);
         updateRichView();
+        triggerAutoSave();
     }
     function processPendingQueue() {
         let processedAny = false;
@@ -705,6 +772,7 @@ export function renderEditorView(onLogout) {
         previousValue = textarea.value;
         textarea.setSelectionRange(cursorPosition, cursorPosition);
         updateRichView();
+        triggerAutoSave();
     });
     ws.addEventListener('message', (event) => {
         const op = JSON.parse(event.data);
