@@ -14,24 +14,13 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    const trimmedUsername = String(username).trim();
-    if (!trimmedUsername) {
-      return res.status(400).json({ error: 'Username cannot be blank' });
-    }
-
-    const existingUser = await User.findOne({ username: trimmedUsername });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username already taken' });
-    }
-
-    const hashedPassword = bcrypt.hashSync(String(password), 10);
-    const newUser = new User({ username: trimmedUsername, password_hash: hashedPassword });
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const newUser = new User({ username, password_hash: hashedPassword });
     await newUser.save();
 
     res.status(200).json({ message: 'User registered successfully!', userId: newUser._id });
   } catch (e: any) {
-    console.error('Signup error:', e);
-    res.status(400).json({ error: e.message || 'Username already taken or invalid request' });
+    res.status(400).json({ error: 'Username already taken or invalid request' });
   }
 });
 
@@ -39,25 +28,17 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
-    }
-
-    const user: any = await User.findOne({ username: String(username).trim() });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password' });
-    }
+    const user: any = await User.findOne({ username });
 
     const hash = user.password_hash || user.password;
-    if (!hash || !bcrypt.compareSync(String(password), hash)) {
+    if (!user || !hash || !bcrypt.compareSync(password, hash)) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
 
     res.status(200).json({ message: 'Login successful', token, username: user.username });
-  } catch (e: any) {
-    console.error('Login error:', e);
+  } catch (e) {
     res.status(500).json({ error: 'Server error' });
   }
 });
