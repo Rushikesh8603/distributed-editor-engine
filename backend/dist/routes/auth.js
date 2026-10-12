@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -25,8 +26,7 @@ router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
-        const hash = user.password_hash || user.password;
-        if (!user || !hash || !bcrypt.compareSync(password, hash)) {
+        if (!user || !bcrypt.compareSync(password, user.password_hash)) {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
         const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });

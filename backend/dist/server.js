@@ -58,9 +58,10 @@ wss.on('connection', (ws, req, docId, user) => {
     const username = user?.username || 'Collaborator';
     console.log(`User ${username} joined room: ${docId}. Active in room: ${room.size}`);
     ws.on('message', (message) => {
+        const textMessage = typeof message === 'string' ? message : message.toString('utf8');
         for (const client of room) {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message);
+                client.send(textMessage);
             }
         }
     });

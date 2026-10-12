@@ -798,14 +798,38 @@ export function renderEditorView(onLogout: () => void) {
     triggerAutoSave();
   });
 
-  ws.addEventListener('message', (event) => {
-    const op = JSON.parse(event.data);
+  ws.addEventListener('open', () => {
+    console.log(`WebSocket connected to room: ${docId}`);
+  });
 
-    if (canApplyOperation(op)) {
-      applyOperation(op);
-      processPendingQueue();
-    } else {
-      pendingOps.push(op);
+  ws.addEventListener('close', (e) => {
+    console.warn(`WebSocket closed: code=${e.code}, reason=${e.reason}`);
+  });
+
+  ws.addEventListener('error', (err) => {
+    console.error('WebSocket error:', err);
+  });
+
+  ws.addEventListener('message', async (event) => {
+    try {
+      let rawData = event.data;
+      if (typeof rawData !== 'string') {
+        if (rawData instanceof Blob) {
+          rawData = await rawData.text();
+        } else {
+          rawData = String(rawData);
+        }
+      }
+      const op = JSON.parse(rawData);
+
+      if (canApplyOperation(op)) {
+        applyOperation(op);
+        processPendingQueue();
+      } else {
+        pendingOps.push(op);
+      }
+    } catch (err) {
+      console.error('Error handling WebSocket message:', err);
     }
   });
 
