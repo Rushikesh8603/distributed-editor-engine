@@ -477,6 +477,30 @@ export function renderEditorView(onLogout: () => void) {
     }
   }
 
+  function sanitizeDeltaChunks(chunks: Array<{ insert: string; attributes?: Record<string, any> }>): Array<{ insert: string; attributes?: Record<string, any> }> {
+    const clean: Array<{ insert: string; attributes?: Record<string, any> }> = [];
+    for (const chunk of chunks) {
+      const text = chunk.insert || '';
+      if (text.includes('"clientId":') || text.includes('anchorClientId') || text.includes('"items":[') || text.includes('elta":[')) {
+        continue;
+      }
+      if (text.length > 0) {
+        clean.push(chunk);
+      }
+    }
+    return clean;
+  }
+
+  function requestPeerSync() {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'sync_request' }));
+    } else {
+      ws.addEventListener('open', () => {
+        ws.send(JSON.stringify({ type: 'sync_request' }));
+      }, { once: true });
+    }
+  }
+
   if (docId && docId !== 'default-room') {
     fetch(`http://localhost:8080/api/docs/${docId}`, {
       headers: {
@@ -491,15 +515,23 @@ export function renderEditorView(onLogout: () => void) {
         if (data.content && doc.renderText() === "") {
           let deltaChunks: Array<{ insert: string; attributes?: Record<string, any> }> = [];
           try {
-            const parsed = JSON.parse(data.content);
+            let parsed = JSON.parse(data.content);
+            if (typeof parsed === 'string') {
+              try {
+                parsed = JSON.parse(parsed);
+              } catch {}
+            }
             if (Array.isArray(parsed)) {
               deltaChunks = parsed;
-            } else {
-              deltaChunks = [{ insert: data.content }];
+            } else if (parsed && Array.isArray(parsed.delta)) {
+              deltaChunks = parsed.delta;
+            } else if (parsed && Array.isArray(parsed.items)) {
+              const live = parsed.items.filter((it: any) => !it.deleted).map((it: any) => it.val).join('');
+              deltaChunks = live ? [{ insert: live }] : [];
             }
-          } catch {
-            deltaChunks = [{ insert: data.content }];
-          }
+          } catch {}
+
+          deltaChunks = sanitizeDeltaChunks(deltaChunks);
 
           let prevClock: number | null = null;
           for (const chunk of deltaChunks) {
@@ -516,8 +548,11 @@ export function renderEditorView(onLogout: () => void) {
           previousValue = textarea.value;
           updateRichView();
         }
+        requestPeerSync();
       })
-      .catch(() => {});
+      .catch(() => {
+        requestPeerSync();
+      });
   }
 
   function getVisibleItemAt(index: number): Item | null {
@@ -701,7 +736,8 @@ export function renderEditorView(onLogout: () => void) {
 
   function canApplyOperation(op: any): boolean {
     if (op.type === 'insert') {
-      return op.anchorClock === null || doc.findItemByClock(op.anchorClientId, op.anchorClock) !== null;
+      if (op.anchorClock === null || op.anchorClientId === null) return true;
+      return doc.findItemByClock(op.anchorClientId, op.anchorClock) !== null;
     }
     if (op.type === 'delete') {
       return doc.findItemByClock(op.clientId, op.clock) !== null;
@@ -757,36 +793,43 @@ export function renderEditorView(onLogout: () => void) {
     const lengthDiff = newValue.length - previousValue.length;
 
     if (lengthDiff > 0) {
-      const insertedChar = newValue.substring(cursorPosition - lengthDiff, cursorPosition);
-      const anchorIndex = cursorPosition - lengthDiff - 1;
-      const anchorItem = getVisibleItemAt(anchorIndex);
-      const anchorId = anchorItem ? anchorItem.clientId : null;
-      const anchorClock = anchorItem ? anchorItem.clock : null;
+      const insertedChars = newValue.substring(cursorPosition - lengthDiff, cursorPosition);
+      let anchorIndex = cursorPosition - lengthDiff - 1;
+      for (let i = 0; i < insertedChars.length; i++) {
+        const char = insertedChars.charAt(i);
+        const anchorItem = getVisibleItemAt(anchorIndex);
+        const anchorId = anchorItem ? anchorItem.clientId : null;
+        const anchorClock = anchorItem ? anchorItem.clock : null;
 
-      const newClock = doc.tick();
-      doc.insert(clientId, newClock, anchorId, anchorClock, insertedChar);
-
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'insert',
-          clientId: clientId,
-          clock: newClock,
-          anchorClientId: anchorId,
-          anchorClock: anchorClock,
-          value: insertedChar
-        }));
-      }
-    } else if (lengthDiff < 0) {
-      const deletedItem = getVisibleItemAt(cursorPosition);
-      if (deletedItem) {
-        doc.delete(deletedItem.clientId, deletedItem.clock);
+        const newClock = doc.tick();
+        doc.insert(clientId, newClock, anchorId, anchorClock, char);
 
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'delete',
-            clientId: deletedItem.clientId,
-            clock: deletedItem.clock
+            type: 'insert',
+            clientId: clientId,
+            clock: newClock,
+            anchorClientId: anchorId,
+            anchorClock: anchorClock,
+            value: char
           }));
+        }
+        anchorIndex++;
+      }
+    } else if (lengthDiff < 0) {
+      const deleteCount = Math.abs(lengthDiff);
+      for (let i = 0; i < deleteCount; i++) {
+        const deletedItem = getVisibleItemAt(cursorPosition);
+        if (deletedItem) {
+          doc.delete(deletedItem.clientId, deletedItem.clock);
+
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'delete',
+              clientId: deletedItem.clientId,
+              clock: deletedItem.clock
+            }));
+          }
         }
       }
     }
@@ -808,6 +851,27 @@ export function renderEditorView(onLogout: () => void) {
 
     try {
       const op = JSON.parse(rawData);
+
+      if (op.type === 'sync_request') {
+        const items = doc.getItems();
+        if (items.length > 0) {
+          ws.send(JSON.stringify({
+            type: 'sync_response',
+            items: items
+          }));
+        }
+        return;
+      }
+
+      if (op.type === 'sync_response') {
+        if (op.items && Array.isArray(op.items) && op.items.length > 0) {
+          doc.loadItems(op.items);
+          textarea.value = doc.renderText();
+          previousValue = textarea.value;
+          updateRichView();
+        }
+        return;
+      }
 
       if (canApplyOperation(op)) {
         applyOperation(op);
