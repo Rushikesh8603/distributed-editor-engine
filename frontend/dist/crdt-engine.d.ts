@@ -26,6 +26,24 @@ export declare class CRDTDocument {
         insert: string;
         attributes?: Record<string, any>;
     }>;
+    getItems(): Array<{
+        clientId: string;
+        clock: number;
+        val: string;
+        anchorClientId: string | null;
+        anchorClock: number | null;
+        deleted: boolean;
+        attributes: Record<string, any>;
+    }>;
+    loadItems(items: Array<{
+        clientId: string;
+        clock: number;
+        val: string;
+        anchorClientId: string | null;
+        anchorClock: number | null;
+        deleted: boolean;
+        attributes?: Record<string, any>;
+    }>): void;
     private addToStructStore;
 }
 //# sourceMappingURL=crdt-engine.d.ts.map

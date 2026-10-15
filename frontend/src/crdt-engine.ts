@@ -275,6 +275,81 @@ export class CRDTDocument {
     return delta;
   }
 
+  public getItems(): Array<{
+    clientId: string;
+    clock: number;
+    val: string;
+    anchorClientId: string | null;
+    anchorClock: number | null;
+    deleted: boolean;
+    attributes: Record<string, any>;
+  }> {
+    const list: Array<{
+      clientId: string;
+      clock: number;
+      val: string;
+      anchorClientId: string | null;
+      anchorClock: number | null;
+      deleted: boolean;
+      attributes: Record<string, any>;
+    }> = [];
+    let current = this.head;
+    while (current !== null) {
+      list.push({
+        clientId: current.clientId,
+        clock: current.clock,
+        val: current.val,
+        anchorClientId: current.anchorClientId,
+        anchorClock: current.anchorClock,
+        deleted: current.deleted,
+        attributes: current.attributes || {}
+      });
+      current = current.right;
+    }
+    return list;
+  }
+
+  public loadItems(items: Array<{
+    clientId: string;
+    clock: number;
+    val: string;
+    anchorClientId: string | null;
+    anchorClock: number | null;
+    deleted: boolean;
+    attributes?: Record<string, any>;
+  }>): void {
+    this.head = null;
+    this.tail = null;
+    this.structStore.clear();
+    this.localClock = 0;
+
+    let prev: Item | null = null;
+    for (const data of items) {
+      const item = new Item(
+        data.clientId,
+        data.clock,
+        data.val,
+        data.anchorClientId,
+        data.anchorClock,
+        Boolean(data.deleted),
+        prev,
+        null,
+        data.attributes || {}
+      );
+      if (prev !== null) {
+        prev.right = item;
+      } else {
+        this.head = item;
+      }
+      prev = item;
+      this.tail = item;
+      this.addToStructStore(item);
+      if (item.clock > this.localClock) {
+        this.localClock = item.clock;
+      }
+    }
+  }
+
   private addToStructStore(item: Item): void {
     let clientItems = this.structStore.get(item.clientId);
     if (!clientItems) {

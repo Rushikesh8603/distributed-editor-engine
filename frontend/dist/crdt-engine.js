@@ -226,6 +226,45 @@ export class CRDTDocument {
         }
         return delta;
     }
+    getItems() {
+        const list = [];
+        let current = this.head;
+        while (current !== null) {
+            list.push({
+                clientId: current.clientId,
+                clock: current.clock,
+                val: current.val,
+                anchorClientId: current.anchorClientId,
+                anchorClock: current.anchorClock,
+                deleted: current.deleted,
+                attributes: current.attributes || {}
+            });
+            current = current.right;
+        }
+        return list;
+    }
+    loadItems(items) {
+        this.head = null;
+        this.tail = null;
+        this.structStore.clear();
+        this.localClock = 0;
+        let prev = null;
+        for (const data of items) {
+            const item = new Item(data.clientId, data.clock, data.val, data.anchorClientId, data.anchorClock, Boolean(data.deleted), prev, null, data.attributes || {});
+            if (prev !== null) {
+                prev.right = item;
+            }
+            else {
+                this.head = item;
+            }
+            prev = item;
+            this.tail = item;
+            this.addToStructStore(item);
+            if (item.clock > this.localClock) {
+                this.localClock = item.clock;
+            }
+        }
+    }
     addToStructStore(item) {
         let clientItems = this.structStore.get(item.clientId);
         if (!clientItems) {

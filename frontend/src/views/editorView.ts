@@ -798,28 +798,15 @@ export function renderEditorView(onLogout: () => void) {
     triggerAutoSave();
   });
 
-  ws.addEventListener('open', () => {
-    console.log(`WebSocket connected to room: ${docId}`);
-  });
-
-  ws.addEventListener('close', (e) => {
-    console.warn(`WebSocket closed: code=${e.code}, reason=${e.reason}`);
-  });
-
-  ws.addEventListener('error', (err) => {
-    console.error('WebSocket error:', err);
-  });
-
   ws.addEventListener('message', async (event) => {
+    let rawData = event.data;
+    if (rawData instanceof Blob) {
+      rawData = await rawData.text();
+    } else if (typeof rawData !== 'string') {
+      rawData = String(rawData);
+    }
+
     try {
-      let rawData = event.data;
-      if (typeof rawData !== 'string') {
-        if (rawData instanceof Blob) {
-          rawData = await rawData.text();
-        } else {
-          rawData = String(rawData);
-        }
-      }
       const op = JSON.parse(rawData);
 
       if (canApplyOperation(op)) {
@@ -829,7 +816,7 @@ export function renderEditorView(onLogout: () => void) {
         pendingOps.push(op);
       }
     } catch (err) {
-      console.error('Error handling WebSocket message:', err);
+      console.error('WebSocket message parsing error:', err);
     }
   });
 

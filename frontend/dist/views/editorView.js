@@ -774,26 +774,15 @@ export function renderEditorView(onLogout) {
         updateRichView();
         triggerAutoSave();
     });
-    ws.addEventListener('open', () => {
-        console.log(`WebSocket connected to room: ${docId}`);
-    });
-    ws.addEventListener('close', (e) => {
-        console.warn(`WebSocket closed: code=${e.code}, reason=${e.reason}`);
-    });
-    ws.addEventListener('error', (err) => {
-        console.error('WebSocket error:', err);
-    });
     ws.addEventListener('message', async (event) => {
+        let rawData = event.data;
+        if (rawData instanceof Blob) {
+            rawData = await rawData.text();
+        }
+        else if (typeof rawData !== 'string') {
+            rawData = String(rawData);
+        }
         try {
-            let rawData = event.data;
-            if (typeof rawData !== 'string') {
-                if (rawData instanceof Blob) {
-                    rawData = await rawData.text();
-                }
-                else {
-                    rawData = String(rawData);
-                }
-            }
             const op = JSON.parse(rawData);
             if (canApplyOperation(op)) {
                 applyOperation(op);
@@ -804,7 +793,7 @@ export function renderEditorView(onLogout) {
             }
         }
         catch (err) {
-            console.error('Error handling WebSocket message:', err);
+            console.error('WebSocket message parsing error:', err);
         }
     });
     document.getElementById('back-to-dash')?.addEventListener('click', () => {
