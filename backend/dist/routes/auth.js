@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 const router = Router();
 export const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_change_in_production";
-// SIGNUP ROUTE: POST /api/signup
 router.post('/signup', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -20,7 +19,6 @@ router.post('/signup', async (req, res) => {
         res.status(400).json({ error: 'Username already taken or invalid request' });
     }
 });
-// LOGIN ROUTE: POST /api/login
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -33,6 +31,21 @@ router.post('/login', async (req, res) => {
     }
     catch (e) {
         res.status(500).json({ error: 'Server error' });
+    }
+});
+router.get('/users/search', async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) {
+            return res.status(200).json([]);
+        }
+        const users = await User.find({
+            username: { $regex: q, $options: 'i' }
+        }).select('username').limit(8);
+        res.status(200).json(users.map(u => ({ username: u.username })));
+    }
+    catch (e) {
+        res.status(500).json({ error: 'Failed to search users' });
     }
 });
 export default router;

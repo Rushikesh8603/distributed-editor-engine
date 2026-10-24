@@ -30,33 +30,22 @@ function authenticate(req: any, res: any, next: any) {
   }
 }
 
-
-
-//[ User in Browser ] Clicks "+ New Document" button
-
-//In our upcoming dashboardView.ts (the Lobby / Document List view). Whenever the user clicks the + New Document button, this route is triggered.
-
 router.post('/', authenticate, async (req: any, res: any) => {
   try {
     const title = req.body.title || 'Untitled document';
     const newDoc = new DocumentModel({
-      // here id gets created automatically by mongo and we can use it to identify the doc uniquely example: http://localhost:8080/editor.html?docId=64f1e2c4b5a3c2d1e4f5a6b7
       title: title,
       content: '',
       owner: req.user.username,
       collaborators: []
     });
     await newDoc.save();
-    res.status(201).json(newDoc); //we send id also of this unique doc mongo creates it for every doc 
+    res.status(201).json(newDoc);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to create document' });
   }
 });
 
-
-//In dashboardView.ts (the Google Docs Home / Dashboard page).
-//When: The exact moment a user logs in and lands on the home screen.
-//Why: So the user isn't looking at an empty screen; they immediately see all their past work and shared files ready to click.
 router.get('/', authenticate, async (req: any, res: any) => {
   try {
     const username = req.user.username;
@@ -68,8 +57,21 @@ router.get('/', authenticate, async (req: any, res: any) => {
   }
 });
 
+router.get('/users/search', authenticate, async (req: any, res: any) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      return res.status(200).json([]);
+    }
+    const users = await User.find({
+      username: { $regex: q, $options: 'i' }
+    }).select('username').limit(8);
+    res.status(200).json(users.map((u: any) => ({ username: u.username })));
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
 
-// when i click to open a document from the dashboard, this route is triggered to fetch the document's content and metadata. by that pertifular doc id 
 router.get('/:id', authenticate, async (req: any, res: any) => {
   try {
     const docId = req.params.id;
@@ -92,7 +94,6 @@ router.get('/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
-//Clicks "Share" & enters friend's name: "bob". 
 router.post('/:id/share', authenticate, async (req: any, res: any) => {
   try {
     const docId = req.params.id;
@@ -131,7 +132,6 @@ router.post('/:id/share', authenticate, async (req: any, res: any) => {
   }
 });
 
-//update the document's title or content. This route is triggered when a user edits a document in real-time. The changes are sent to the server, which updates the document in the database. The server then broadcasts the changes to all other collaborators connected to the same document via WebSocket.
 router.put('/:id', authenticate, async (req: any, res: any) => {
   try {
     const docId = req.params.id;
@@ -163,4 +163,3 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
 });
 
 export default router;
-

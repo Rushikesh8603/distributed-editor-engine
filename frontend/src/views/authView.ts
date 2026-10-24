@@ -194,9 +194,6 @@ export function renderAuthView(onLoginSuccess: () => void) {
     </div>
   `;
 
-
-
-  // Fix quick HTML tag typo cleanup on innerHTML
   const formTitle = document.getElementById('form-title')!;
   const authForm = document.getElementById('auth-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
@@ -205,7 +202,6 @@ export function renderAuthView(onLoginSuccess: () => void) {
   const usernameInput = document.getElementById('username-input') as HTMLInputElement;
   const passwordInput = document.getElementById('password-input') as HTMLInputElement;
 
-  // Toggle between Login and Signup modes
   toggleBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     formTitle.textContent = isLoginMode ? 'Login' : 'Sign Up';
@@ -216,7 +212,6 @@ export function renderAuthView(onLoginSuccess: () => void) {
     errorBox.textContent = '';
   });
 
-  // Handle Form Submission
   authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorBox.textContent = '';
@@ -232,7 +227,6 @@ export function renderAuthView(onLoginSuccess: () => void) {
       const result = await apiRequest(endpoint, 'POST', { username, password });
 
       if (!isLoginMode) {
-        // If signup was successful, automatically log them in or prompt them
         alert('Account created successfully! Please log in.');
         isLoginMode = true;
         formTitle.textContent = 'Login';
@@ -242,11 +236,9 @@ export function renderAuthView(onLoginSuccess: () => void) {
         return;
       }
 
-      // If login was successful, save JWT token and username to state
       state.setToken(result.token);
       state.setUsername(result.username);
 
-      // Trigger router transition to dashboard
       onLoginSuccess();
     } catch (err: any) {
       errorBox.textContent = err.message || 'Authentication failed';
@@ -255,4 +247,3 @@ export function renderAuthView(onLoginSuccess: () => void) {
     }
   });
 }
-

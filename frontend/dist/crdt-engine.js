@@ -24,9 +24,6 @@ export class CRDTDocument {
     structStore = new Map();
     head = null;
     tail = null;
-    // ─── ADDED: LAMPORT CLOCK TRACKER ───
-    // Tracks the highest clock seen by this device. 
-    // Use `doc.tick()` when typing locally to get your next clock number.
     localClock = 0;
     tick() {
         this.localClock++;
@@ -71,24 +68,17 @@ export class CRDTDocument {
             }
         }
         const newItem = new Item(clientId, clock, value, anchorClientId, anchorClock, false, null, null, attributes);
-        // ─── BUG FIX 1: UNIFIED TIE-BREAKER LOOP ───
-        // A null anchor just means the "virtual root" (beginning of the document).
-        // We now start the traversal safely whether we are at the head or in the middle.
         let curr = anchor ? anchor.right : this.head;
         while (curr !== null) {
             const isHigherClock = curr.clock > newItem.clock;
             const isAlphabeticalWin = curr.clock === newItem.clock && curr.clientId > newItem.clientId;
-            // If the item sitting here has a higher priority, skip past it!
             if (isHigherClock || isAlphabeticalWin) {
                 curr = curr.right;
             }
             else {
-                break; // We found the exact mathematical slot for our item.
+                break;
             }
         }
-        // ─── POINTER SPLICING ───
-        // Because we simplified the loop above, the pointer rewiring 
-        // is now much cleaner and handles empty documents perfectly.
         const prev = curr ? curr.left : this.tail;
         newItem.left = prev;
         newItem.right = curr;
@@ -96,13 +86,13 @@ export class CRDTDocument {
             prev.right = newItem;
         }
         else {
-            this.head = newItem; // We inserted at the absolute beginning
+            this.head = newItem;
         }
         if (curr !== null) {
             curr.left = newItem;
         }
         else {
-            this.tail = newItem; // We inserted at the absolute end
+            this.tail = newItem;
         }
         this.addToStructStore(newItem);
         return newItem;
@@ -110,9 +100,8 @@ export class CRDTDocument {
     delete(clientId, clock) {
         const item = this.findItemByClock(clientId, clock);
         if (!item) {
-            return false; // Caller should buffer and retry if delete arrives before insert
+            return false;
         }
-        // Lamport clock sync on delete too
         this.localClock = Math.max(this.localClock, clock);
         item.deleted = true;
         return true;
@@ -153,20 +142,61 @@ export class CRDTDocument {
         }
     }
     renderHTML() {
-        const parts = [];
+        const lines = [];
+        let currentLineItems = [];
+        let currentAlign = undefined;
+        let currentIndent = undefined;
+        let currentLineSpacing = undefined;
         let current = this.head;
         while (current !== null) {
             if (!current.deleted) {
-                let val = current.val;
-                if (val === '\n') {
-                    parts.push('<br>');
-                    current = current.right;
-                    continue;
+                const attrs = current.attributes || {};
+                if (attrs.align)
+                    currentAlign = attrs.align;
+                if (typeof attrs.indent === 'number')
+                    currentIndent = attrs.indent;
+                if (attrs.lineSpacing)
+                    currentLineSpacing = attrs.lineSpacing;
+                if (current.val === '\n') {
+                    lines.push({
+                        items: currentLineItems,
+                        align: currentAlign,
+                        indent: currentIndent,
+                        lineSpacing: currentLineSpacing
+                    });
+                    currentLineItems = [];
+                    currentAlign = undefined;
+                    currentIndent = undefined;
+                    currentLineSpacing = undefined;
                 }
+                else {
+                    currentLineItems.push(current);
+                }
+            }
+            current = current.right;
+        }
+        lines.push({
+            items: currentLineItems,
+            align: currentAlign,
+            indent: currentIndent,
+            lineSpacing: currentLineSpacing
+        });
+        const htmlLines = [];
+        for (const line of lines) {
+            const lineStyles = ['min-height: 1.5em;'];
+            if (line.align)
+                lineStyles.push(`text-align: ${line.align};`);
+            if (line.indent)
+                lineStyles.push(`padding-left: ${line.indent * 36}px;`);
+            if (line.lineSpacing)
+                lineStyles.push(`line-height: ${line.lineSpacing};`);
+            const parts = [];
+            for (const item of line.items) {
+                let val = item.val;
                 if (val === ' ') {
                     val = '&nbsp;';
                 }
-                const attrs = current.attributes || {};
+                const attrs = item.attributes || {};
                 const styles = [];
                 if (attrs.bold)
                     styles.push('font-weight: bold;');
@@ -180,16 +210,29 @@ export class CRDTDocument {
                     styles.push('text-decoration: line-through;');
                 if (attrs.font)
                     styles.push(`font-family: ${attrs.font};`);
-                if (attrs.size)
-                    styles.push(`font-size: ${attrs.size};`);
                 if (attrs.color)
                     styles.push(`color: ${attrs.color};`);
                 if (attrs.background)
                     styles.push(`background-color: ${attrs.background};`);
                 if (attrs.code)
                     styles.push('font-family: monospace; background: #f1f3f4; padding: 1px 4px; border-radius: 3px; font-size: 0.9em;');
+                if (attrs.heading === 'title')
+                    styles.push('font-weight: normal; line-height: 1.2;' + (attrs.size ? '' : ' font-size: 26pt;'));
+                else if (attrs.heading === 'subtitle')
+                    styles.push('color: #5f6368; line-height: 1.35;' + (attrs.size ? '' : ' font-size: 15pt;'));
+                else if (attrs.heading === 'h1')
+                    styles.push('font-weight: bold; line-height: 1.25;' + (attrs.size ? '' : ' font-size: 20pt;'));
+                else if (attrs.heading === 'h2')
+                    styles.push('font-weight: bold; line-height: 1.3;' + (attrs.size ? '' : ' font-size: 16pt;'));
+                else if (attrs.heading === 'h3')
+                    styles.push('font-weight: bold; line-height: 1.35;' + (attrs.size ? '' : ' font-size: 14pt;'));
+                if (attrs.size)
+                    styles.push(`font-size: ${attrs.size};`);
                 let formatted = val;
-                if (styles.length > 0) {
+                if (attrs.image) {
+                    formatted = `<img src="${attrs.image}" style="max-width: 100%; border-radius: 4px; display: inline-block; vertical-align: middle;" alt="Embedded image" />`;
+                }
+                else if (styles.length > 0) {
                     formatted = `<span style="${styles.join(' ')}">${formatted}</span>`;
                 }
                 if (attrs.script === 'sub') {
@@ -198,11 +241,15 @@ export class CRDTDocument {
                 else if (attrs.script === 'super') {
                     formatted = `<sup>${formatted}</sup>`;
                 }
+                if (attrs.link) {
+                    formatted = `<a href="${attrs.link}" target="_blank" rel="noopener noreferrer" style="color: #1a73e8; text-decoration: underline;">${formatted}</a>`;
+                }
                 parts.push(formatted);
             }
-            current = current.right;
+            const content = parts.length > 0 ? parts.join('') : '<br>';
+            htmlLines.push(`<div class="gdoc-line" style="${lineStyles.join(' ')}">${content}</div>`);
         }
-        return parts.join('');
+        return htmlLines.join('');
     }
     renderDelta() {
         const delta = [];

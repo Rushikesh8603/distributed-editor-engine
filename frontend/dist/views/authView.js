@@ -191,7 +191,6 @@ export function renderAuthView(onLoginSuccess) {
       </div>
     </div>
   `;
-    // Fix quick HTML tag typo cleanup on innerHTML
     const formTitle = document.getElementById('form-title');
     const authForm = document.getElementById('auth-form');
     const submitBtn = document.getElementById('submit-btn');
@@ -199,7 +198,6 @@ export function renderAuthView(onLoginSuccess) {
     const errorBox = document.getElementById('error-box');
     const usernameInput = document.getElementById('username-input');
     const passwordInput = document.getElementById('password-input');
-    // Toggle between Login and Signup modes
     toggleBtn.addEventListener('click', () => {
         isLoginMode = !isLoginMode;
         formTitle.textContent = isLoginMode ? 'Login' : 'Sign Up';
@@ -209,7 +207,6 @@ export function renderAuthView(onLoginSuccess) {
             : `Already have an account? <span>Login</span>`;
         errorBox.textContent = '';
     });
-    // Handle Form Submission
     authForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         errorBox.textContent = '';
@@ -221,7 +218,6 @@ export function renderAuthView(onLoginSuccess) {
             submitBtn.setAttribute('disabled', 'true');
             const result = await apiRequest(endpoint, 'POST', { username, password });
             if (!isLoginMode) {
-                // If signup was successful, automatically log them in or prompt them
                 alert('Account created successfully! Please log in.');
                 isLoginMode = true;
                 formTitle.textContent = 'Login';
@@ -230,10 +226,8 @@ export function renderAuthView(onLoginSuccess) {
                 submitBtn.removeAttribute('disabled');
                 return;
             }
-            // If login was successful, save JWT token and username to state
             state.setToken(result.token);
             state.setUsername(result.username);
-            // Trigger router transition to dashboard
             onLoginSuccess();
         }
         catch (err) {
