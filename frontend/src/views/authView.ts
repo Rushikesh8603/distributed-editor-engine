@@ -5,6 +5,8 @@ export function renderAuthView(onLoginSuccess: () => void) {
   const app = document.getElementById('app');
   if (!app) return;
 
+  document.title = 'Sign In — DocSync Distributed Engine';
+
   let isLoginMode = true;
 
   app.innerHTML = `

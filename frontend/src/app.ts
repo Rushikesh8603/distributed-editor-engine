@@ -5,6 +5,7 @@ import { renderDashboardView } from './views/dashboardView.js';
 
 function initRouter() {
   if (!state.isAuthenticated()) {
+    document.title = 'Sign In — DocSync Distributed Engine';
     renderAuthView(() => {
       initRouter();
     });
@@ -15,10 +16,12 @@ function initRouter() {
   const docId = urlParams.get('docId');
 
   if (docId) {
+    document.title = 'Document — DocSync Distributed Engine';
     renderEditorView(() => {
       initRouter();
     });
   } else {
+    document.title = 'DocSync — Distributed Collaborative Workspace';
     renderDashboardView(
       () => {
         initRouter();

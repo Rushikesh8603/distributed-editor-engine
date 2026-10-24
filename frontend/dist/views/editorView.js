@@ -1520,7 +1520,43 @@ export function renderEditorView(onLogout) {
 
     <div id="menu-help-pop" class="gdoc-dropdown-menu">
       <div class="gdoc-dropdown-item" id="menu-help-shortcuts">Keyboard shortcuts</div>
-      <div class="gdoc-dropdown-item" id="menu-help-about">About Google Docs Clone</div>
+      <div class="gdoc-dropdown-item" id="menu-help-about">About DocSync Distributed Engine</div>
+    </div>
+
+    <div id="sidebar-tab-menu" class="gdoc-dropdown-menu" style="position: fixed; display: none; z-index: 25000; min-width: 170px; background: #ffffff; border: 1px solid #dadce0; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); padding: 4px 0;">
+      <div class="gdoc-dropdown-item" id="sidebar-menu-newtab" style="padding: 8px 14px; font-size: 13px; color: #202124; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+        <span class="material-symbols-outlined" style="font-size: 18px;">open_in_new</span>
+        <span>Open in new tab</span>
+      </div>
+      <div class="gdoc-dropdown-item" id="sidebar-menu-copy" style="padding: 8px 14px; font-size: 13px; color: #202124; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+        <span class="material-symbols-outlined" style="font-size: 18px;">link</span>
+        <span>Copy link</span>
+      </div>
+      <div class="gdoc-dropdown-item" id="sidebar-menu-delete" style="padding: 8px 14px; font-size: 13px; color: #d93025; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+        <span class="material-symbols-outlined" style="font-size: 18px; color: #d93025;">delete</span>
+        <span>Delete document</span>
+      </div>
+    </div>
+
+    <div id="doc-delete-modal" class="gdoc-modal-overlay" style="display: none;">
+      <div class="gdoc-modal-card" style="width: 440px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 44px; height: 44px; border-radius: 50%; background: #fce8e6; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <span class="material-symbols-outlined" style="color: #d93025; font-size: 24px;">delete</span>
+          </div>
+          <div>
+            <h3 class="gdoc-modal-title">Delete document?</h3>
+            <div style="font-size: 13px; color: #5f6368; margin-top: 2px;">Permanently remove from distributed engine</div>
+          </div>
+        </div>
+        <div style="font-size: 14px; color: #3c4043; line-height: 1.5;" id="doc-delete-statement">
+          Are you sure you want to permanently delete this document? This action will remove the document from your library and delete all replicas. Collaborators will lose access immediately. This cannot be undone.
+        </div>
+        <div class="gdoc-modal-actions">
+          <button id="doc-delete-cancel" class="gdoc-btn-cancel" type="button">Cancel</button>
+          <button id="doc-delete-confirm" class="gdoc-btn-primary" type="button" style="background: #d93025; color: #ffffff; border-color: #d93025;">Delete permanently</button>
+        </div>
+      </div>
     </div>
 
     <div id="link-modal" class="gdoc-modal-overlay">
@@ -3171,7 +3207,7 @@ export function renderEditorView(onLogout) {
     });
     document.getElementById('menu-help-about')?.addEventListener('click', () => {
         closeAllDropdowns();
-        alert('Google Docs Material 3 Clone\nBuilt with CRDT real-time multi-user synchronization engine.');
+        alert('DocSync Engine — Distributed Real-Time Editor\nPowered by Conflict-free Replicated Data Types (CRDT) and real-time WebSocket synchronization.');
     });
     document.getElementById('btn-version-history')?.addEventListener('click', () => {
         alert("Version history: Current document is automatically synced and backed up in real time with version timestamps.");
@@ -3654,6 +3690,7 @@ export function renderEditorView(onLogout) {
     });
     titleInput?.addEventListener('input', () => {
         const val = titleInput.value || 'Untitled document';
+        document.title = `${val} — DocSync Distributed Engine`;
         const activeItem = document.querySelector(`.gdoc-sidebar-tab-item[data-doc-id="${docId}"] .gdoc-sidebar-tab-item-title`);
         if (activeItem) {
             activeItem.textContent = val;
@@ -3775,6 +3812,7 @@ export function renderEditorView(onLogout) {
                 const data = await res.json();
                 if (data.title && titleInput) {
                     titleInput.value = data.title;
+                    document.title = `${data.title} — DocSync Distributed Engine`;
                 }
                 if (data.content) {
                     try {
@@ -3819,12 +3857,58 @@ export function renderEditorView(onLogout) {
         }
         catch (err) { }
     }
+    let activeSidebarDocId = null;
+    const sidebarTabMenu = document.getElementById('sidebar-tab-menu');
+    const docDeleteModal = document.getElementById('doc-delete-modal');
+    const docDeleteStatement = document.getElementById('doc-delete-statement');
+    document.addEventListener('click', (e) => {
+        if (sidebarTabMenu && !sidebarTabMenu.contains(e.target)) {
+            sidebarTabMenu.style.display = 'none';
+        }
+    });
+    document.getElementById('sidebar-menu-newtab')?.addEventListener('click', () => {
+        if (sidebarTabMenu)
+            sidebarTabMenu.style.display = 'none';
+        if (activeSidebarDocId) {
+            window.open(`/?docId=${activeSidebarDocId}`, '_blank');
+        }
+    });
+    document.getElementById('sidebar-menu-copy')?.addEventListener('click', () => {
+        if (sidebarTabMenu)
+            sidebarTabMenu.style.display = 'none';
+        if (activeSidebarDocId) {
+            const url = `${window.location.origin}/?docId=${activeSidebarDocId}`;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('Link copied to clipboard');
+            }).catch(() => { });
+        }
+    });
+    document.getElementById('sidebar-menu-delete')?.addEventListener('click', () => {
+        if (sidebarTabMenu)
+            sidebarTabMenu.style.display = 'none';
+        if (!activeSidebarDocId)
+            return;
+        const targetDoc = cachedMyDocs.find(d => d._id === activeSidebarDocId);
+        if (docDeleteStatement) {
+            docDeleteStatement.textContent = `Are you sure you want to permanently delete "${targetDoc?.title || 'Untitled document'}"? This action will remove the document from your library and delete all replicas. Collaborators will lose access immediately. This cannot be undone.`;
+        }
+        if (docDeleteModal)
+            docDeleteModal.style.display = 'flex';
+    });
+    document.getElementById('doc-delete-cancel')?.addEventListener('click', () => {
+        if (docDeleteModal)
+            docDeleteModal.style.display = 'none';
+    });
+    document.getElementById('doc-delete-confirm')?.addEventListener('click', async () => {
+        if (docDeleteModal)
+            docDeleteModal.style.display = 'none';
+        if (activeSidebarDocId) {
+            await deleteSidebarDoc(activeSidebarDocId);
+        }
+    });
     async function deleteSidebarDoc(targetId) {
         const targetDoc = cachedMyDocs.find(d => d._id === targetId);
         if (!targetDoc)
-            return;
-        const confirmDelete = window.confirm(`Delete "${targetDoc.title || 'Untitled document'}"?`);
-        if (!confirmDelete)
             return;
         try {
             const res = await fetch(`http://localhost:8080/api/docs/${targetId}`, {
@@ -3875,7 +3959,7 @@ export function renderEditorView(onLogout) {
                 <span class="material-symbols-outlined" style="font-size: 18px; color: ${isActive ? '#041E49' : '#444746'};">description</span>
                 <span class="gdoc-sidebar-tab-item-title">${escapedTitle}</span>
               </div>
-              <button class="gdoc-tab-3dot" data-doc-id="${d._id}" title="Delete document" type="button" style="background: transparent; border: none; cursor: pointer; padding: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#041E49' : '#5f6368'};">
+              <button class="gdoc-tab-3dot" data-doc-id="${d._id}" title="More options" type="button" style="background: transparent; border: none; cursor: pointer; padding: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#041E49' : '#5f6368'};">
                 <span class="material-symbols-outlined" style="font-size: 16px;">more_vert</span>
               </button>
             </div>
@@ -3895,8 +3979,13 @@ export function renderEditorView(onLogout) {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const id = btn.getAttribute('data-doc-id');
-                        if (id)
-                            deleteSidebarDoc(id);
+                        if (!id || !sidebarTabMenu)
+                            return;
+                        activeSidebarDocId = id;
+                        const rect = btn.getBoundingClientRect();
+                        sidebarTabMenu.style.left = `${Math.min(rect.left, window.innerWidth - 180)}px`;
+                        sidebarTabMenu.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - 150)}px`;
+                        sidebarTabMenu.style.display = 'block';
                     });
                 });
             }
@@ -3967,6 +4056,7 @@ export function renderEditorView(onLogout) {
         window.history.pushState({}, '', '/?docId=' + targetDocId);
         if (targetTitle && titleInput) {
             titleInput.value = targetTitle;
+            document.title = `${targetTitle} — DocSync Distributed Engine`;
         }
         doc = new CRDTDocument();
         undoStack.length = 0;
