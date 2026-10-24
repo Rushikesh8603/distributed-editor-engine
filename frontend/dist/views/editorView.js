@@ -1749,6 +1749,73 @@ export function renderEditorView(onLogout) {
             }, 2500);
         }
     }
+    const undoStack = [];
+    const redoStack = [];
+    const MAX_HISTORY = 60;
+    function recordHistorySnapshot() {
+        const items = doc.getItems();
+        if (undoStack.length > 0) {
+            const top = undoStack[undoStack.length - 1];
+            if (top && top.length === items.length) {
+                let same = true;
+                for (let i = 0; i < items.length; i++) {
+                    const a = items[i];
+                    const b = top[i];
+                    if (!a || !b || a.val !== b.val || a.deleted !== b.deleted || a.clock !== b.clock) {
+                        same = false;
+                        break;
+                    }
+                }
+                if (same)
+                    return;
+            }
+        }
+        undoStack.push(JSON.parse(JSON.stringify(items)));
+        if (undoStack.length > MAX_HISTORY) {
+            undoStack.shift();
+        }
+        redoStack.length = 0;
+    }
+    function performUndo() {
+        if (undoStack.length === 0)
+            return;
+        const currentItems = doc.getItems();
+        redoStack.push(JSON.parse(JSON.stringify(currentItems)));
+        const prev = undoStack.pop();
+        if (prev) {
+            doc.loadItems(prev);
+            renderEditor();
+            previousValue = getEditorText();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'sync_response',
+                    items: doc.getItems()
+                }));
+            }
+            triggerAutoSave();
+            showToast('Undo');
+        }
+    }
+    function performRedo() {
+        if (redoStack.length === 0)
+            return;
+        const currentItems = doc.getItems();
+        undoStack.push(JSON.parse(JSON.stringify(currentItems)));
+        const next = redoStack.pop();
+        if (next) {
+            doc.loadItems(next);
+            renderEditor();
+            previousValue = getEditorText();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'sync_response',
+                    items: doc.getItems()
+                }));
+            }
+            triggerAutoSave();
+            showToast('Redo');
+        }
+    }
     function initWebSocket() {
         ws = new WebSocket(`ws://localhost:8080?docId=${encodeURIComponent(docId)}&token=${encodeURIComponent(token)}`);
         ws.addEventListener('message', async (event) => {
@@ -2548,6 +2615,7 @@ export function renderEditorView(onLogout) {
             return;
         }
         doc.format(startItem.clientId, startItem.clock, endItem.clientId, endItem.clock, attributes);
+        recordHistorySnapshot();
         renderEditor(true);
         triggerAutoSave();
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2717,6 +2785,7 @@ export function renderEditorView(onLogout) {
             deleteRange(start, end);
         }
         insertAtOffset(start, text, attrs);
+        recordHistorySnapshot();
         renderEditor();
         previousValue = getEditorText();
         setCaretPosition(start + text.length);
@@ -3300,18 +3369,33 @@ export function renderEditorView(onLogout) {
         window.print();
     });
     document.getElementById('menu-edit-undo')?.addEventListener('click', () => {
-        document.execCommand('undo');
+        performUndo();
         closeAllDropdowns();
     });
     document.getElementById('menu-edit-redo')?.addEventListener('click', () => {
-        document.execCommand('redo');
+        performRedo();
         closeAllDropdowns();
     });
     document.getElementById('tool-undo')?.addEventListener('click', () => {
-        document.execCommand('undo');
+        performUndo();
     });
     document.getElementById('tool-redo')?.addEventListener('click', () => {
-        document.execCommand('redo');
+        performRedo();
+    });
+    window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                performRedo();
+            }
+            else {
+                performUndo();
+            }
+        }
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            performRedo();
+        }
     });
     document.getElementById('menu-edit-select-all')?.addEventListener('click', () => {
         const range = document.createRange();
@@ -3729,10 +3813,50 @@ export function renderEditorView(onLogout) {
                     renderEditor();
                     previousValue = '';
                 }
+                recordHistorySnapshot();
                 requestPeerSync();
             }
         }
         catch (err) { }
+    }
+    async function deleteSidebarDoc(targetId) {
+        const targetDoc = cachedMyDocs.find(d => d._id === targetId);
+        if (!targetDoc)
+            return;
+        const confirmDelete = window.confirm(`Delete "${targetDoc.title || 'Untitled document'}"?`);
+        if (!confirmDelete)
+            return;
+        try {
+            const res = await fetch(`http://localhost:8080/api/docs/${targetId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (res.ok) {
+                showToast('Document deleted');
+                cachedMyDocs = cachedMyDocs.filter(d => d._id !== targetId);
+                if (targetId === docId) {
+                    const next = cachedMyDocs[0] || cachedSharedDocs[0];
+                    if (next && next._id) {
+                        await switchDocument(next._id, next.title);
+                    }
+                    else {
+                        await createAndSwitchNewDocument();
+                    }
+                }
+                else {
+                    renderSidebarDocuments();
+                }
+            }
+            else {
+                const errData = await res.json().catch(() => ({}));
+                alert(errData.error || 'Failed to delete document');
+            }
+        }
+        catch (e) {
+            alert(e.message || 'Error deleting document');
+        }
     }
     function renderSidebarDocuments() {
         const myContainer = document.getElementById('my-docs-tabs-list');
@@ -3746,21 +3870,33 @@ export function renderEditorView(onLogout) {
                     const isActive = d._id === docId;
                     const escapedTitle = (d.title || 'Untitled document').replace(/"/g, '&quot;');
                     return `
-            <div class="gdoc-sidebar-tab-item ${isActive ? 'active' : ''}" data-doc-id="${d._id}" title="${escapedTitle}">
-              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+            <div class="gdoc-sidebar-tab-item ${isActive ? 'active' : ''}" data-doc-id="${d._id}" title="${escapedTitle}" style="position: relative;">
+              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1;">
                 <span class="material-symbols-outlined" style="font-size: 18px; color: ${isActive ? '#041E49' : '#444746'};">description</span>
                 <span class="gdoc-sidebar-tab-item-title">${escapedTitle}</span>
               </div>
-              <span class="material-symbols-outlined" style="font-size: 16px; opacity: 0.7;">${isActive ? 'check' : ''}</span>
+              <button class="gdoc-tab-3dot" data-doc-id="${d._id}" title="Delete document" type="button" style="background: transparent; border: none; cursor: pointer; padding: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#041E49' : '#5f6368'};">
+                <span class="material-symbols-outlined" style="font-size: 16px;">more_vert</span>
+              </button>
             </div>
           `;
                 }).join('');
                 myContainer.querySelectorAll('.gdoc-sidebar-tab-item').forEach((item) => {
-                    item.addEventListener('click', () => {
+                    item.addEventListener('click', (e) => {
+                        if (e.target.closest('.gdoc-tab-3dot'))
+                            return;
                         const id = item.getAttribute('data-doc-id');
                         const titleEl = item.querySelector('.gdoc-sidebar-tab-item-title');
                         if (id)
                             switchDocument(id, titleEl?.textContent || undefined);
+                    });
+                });
+                myContainer.querySelectorAll('.gdoc-tab-3dot').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = btn.getAttribute('data-doc-id');
+                        if (id)
+                            deleteSidebarDoc(id);
                     });
                 });
             }
@@ -3775,7 +3911,7 @@ export function renderEditorView(onLogout) {
                     const escapedTitle = (d.title || 'Untitled document').replace(/"/g, '&quot;');
                     return `
             <div class="gdoc-sidebar-tab-item ${isActive ? 'active' : ''}" data-doc-id="${d._id}" title="${escapedTitle} (by ${d.owner})">
-              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1;">
                 <span class="material-symbols-outlined" style="font-size: 18px; color: ${isActive ? '#041E49' : '#444746'};">group</span>
                 <span class="gdoc-sidebar-tab-item-title">${escapedTitle}</span>
               </div>
@@ -3833,6 +3969,8 @@ export function renderEditorView(onLogout) {
             titleInput.value = targetTitle;
         }
         doc = new CRDTDocument();
+        undoStack.length = 0;
+        redoStack.length = 0;
         previousValue = "";
         savedSelection = { start: 0, end: 0 };
         pendingAttributes = {};
@@ -3964,6 +4102,7 @@ export function renderEditorView(onLogout) {
                 }
             }
         }
+        recordHistorySnapshot();
         renderEditor();
         previousValue = getEditorText();
         triggerAutoSave();

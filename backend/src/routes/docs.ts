@@ -162,4 +162,23 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
   }
 });
 
+router.delete('/:id', authenticate, async (req: any, res: any) => {
+  try {
+    const docId = req.params.id;
+    const doc = await DocumentModel.findById(docId);
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    if (doc.owner !== req.user.username) {
+      return res.status(403).json({ error: 'Only the creator can delete this document' });
+    }
+
+    await DocumentModel.findByIdAndDelete(docId);
+    res.status(200).json({ success: true, message: 'Document deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
 export default router;

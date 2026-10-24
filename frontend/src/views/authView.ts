@@ -9,16 +9,33 @@ export function renderAuthView(onLoginSuccess: () => void) {
 
   app.innerHTML = `
     <style>
-      body {
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 100vh !important;
         background-color: #f0f4f9 !important;
         color: #202124 !important;
+        overflow-y: auto !important;
+      }
+      #app {
+        width: 100% !important;
+        min-height: 100vh !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
       }
       .google-auth-container {
         display: flex;
         justify-content: center;
         align-items: center;
         width: 100%;
-        padding: 16px;
+        min-height: 100vh;
+        padding: 24px 16px;
         box-sizing: border-box;
       }
       .google-card {
