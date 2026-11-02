@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: docsync-redis
+    restart: unless-stopped
+
+  backend-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docsync-backend-1
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=8080
+      - SERVER_ID=srv-1
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  backend-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docsync-backend-2
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=8080
+      - SERVER_ID=srv-2
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  load-balancer:
+    image: nginx:alpine
+    container_name: docsync-load-balancer
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend-1
+      - backend-2
