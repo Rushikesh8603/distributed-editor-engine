@@ -1,5 +1,17 @@
 import { state } from './state.js';
-const API_BASE_URL = 'http://localhost:8080/api';
+export function getApiBaseUrl() {
+    if (typeof window !== 'undefined' && window.location.port === '3000') {
+        return 'http://localhost:8080/api';
+    }
+    return `${window.location.origin}/api`;
+}
+export function getWsBaseUrl() {
+    if (typeof window !== 'undefined' && window.location.port === '3000') {
+        return 'ws://localhost:8080';
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+}
 export async function apiRequest(endpoint, method = 'GET', data, token) {
     const authToken = token || state.getToken();
     const headers = {
@@ -15,7 +27,7 @@ export async function apiRequest(endpoint, method = 'GET', data, token) {
     if (method !== 'GET' && data) {
         options.body = JSON.stringify(data);
     }
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, options);
     const result = await response.json();
     if (!response.ok) {
         throw new Error(result.error || 'Something went wrong');

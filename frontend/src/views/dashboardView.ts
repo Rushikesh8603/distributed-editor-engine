@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { apiRequest } from '../api.js';
+import { apiRequest, getApiBaseUrl, getWsBaseUrl } from '../api.js';
 
 export async function renderDashboardView(onLogout: () => void, onOpenDoc: (docId: string) => void) {
   const app = document.getElementById('app');
@@ -925,7 +925,7 @@ export async function renderDashboardView(onLogout: () => void, onOpenDoc: (docI
           <div style="display: flex; justify-content: space-between;"><span>Concurrency Model:</span><b style="color: #0b57d0;">Conflict-free Replicated Data Type (CRDT)</b></div>
           <div style="display: flex; justify-content: space-between;"><span>Conflict Resolution:</span><b>Last-Write-Wins (LWW) & Vector Clocks</b></div>
           <div style="display: flex; justify-content: space-between;"><span>Sync Protocol:</span><b style="color: #137333;">WebSocket Real-Time Broadcast</b></div>
-          <div style="display: flex; justify-content: space-between;"><span>Backend Endpoint:</span><code>ws://localhost:8080</code></div>
+          <div style="display: flex; justify-content: space-between;"><span>Backend Endpoint:</span><code>${getWsBaseUrl()}</code></div>
           <div style="display: flex; justify-content: space-between;"><span>Storage Engine:</span><b>MongoDB Atlas Cluster</b></div>
           <div style="display: flex; justify-content: space-between;"><span>Active Session:</span><b>${username}</b></div>
         </div>
@@ -1053,7 +1053,7 @@ export async function renderDashboardView(onLogout: () => void, onOpenDoc: (docI
 
     try {
       const token = state.getToken();
-      const res = await fetch(`http://localhost:8080/api/docs/${docId}`, {
+      const res = await fetch(`${getApiBaseUrl()}/docs/${docId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1123,7 +1123,7 @@ export async function renderDashboardView(onLogout: () => void, onOpenDoc: (docI
 
     try {
       const token = state.getToken();
-      const res = await fetch(`http://localhost:8080/api/docs/${docToDelete._id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/docs/${docToDelete._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -1148,7 +1148,7 @@ export async function renderDashboardView(onLogout: () => void, onOpenDoc: (docI
       if (newDoc && newDoc._id) {
         if (contentStr) {
           const token = state.getToken();
-          await fetch(`http://localhost:8080/api/docs/${newDoc._id}`, {
+          await fetch(`${getApiBaseUrl()}/docs/${newDoc._id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',

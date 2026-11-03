@@ -1,11 +1,12 @@
 import { CRDTDocument, Item } from './crdt-engine.js';
+import { getWsBaseUrl } from './api.js';
 
 const clientId = "User_" + Math.floor(Math.random() * 1000);
 const doc = new CRDTDocument();
 const textarea = document.getElementById('editor') as HTMLTextAreaElement;
 let previousValue = "";
 
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket(getWsBaseUrl());
 
 // ==========================================
 // CAUSAL DELIVERY BUFFER & QUEUE LOGIC

@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { getApiBaseUrl, getWsBaseUrl } from '../api.js';
 import { CRDTDocument } from '../crdt-engine.js';
 import { getEditorTemplate } from './editorView/editorView.template.js';
 import { MAX_HISTORY } from './editorView/editorView.constants.js';
@@ -124,7 +125,7 @@ export function renderEditorView(onLogout) {
         }
     }
     function initWebSocket() {
-        ws = new WebSocket(`ws://localhost:8080?docId=${encodeURIComponent(docId)}&token=${encodeURIComponent(token)}`);
+        ws = new WebSocket(`${getWsBaseUrl()}?docId=${encodeURIComponent(docId)}&token=${encodeURIComponent(token)}`);
         ws.addEventListener('message', async (event) => {
             let rawData = event.data;
             if (rawData instanceof Blob) {
@@ -1368,7 +1369,7 @@ export function renderEditorView(onLogout) {
             try {
                 let users = [];
                 try {
-                    const res = await fetch(`http://localhost:8080/api/docs/users/search?q=${encodeURIComponent(val)}`, {
+                    const res = await fetch(`${getApiBaseUrl()}/docs/users/search?q=${encodeURIComponent(val)}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (res.ok) {
@@ -1378,7 +1379,7 @@ export function renderEditorView(onLogout) {
                 catch (e) { }
                 if (users.length === 0) {
                     try {
-                        const res2 = await fetch(`http://localhost:8080/api/users/search?q=${encodeURIComponent(val)}`);
+                        const res2 = await fetch(`${getApiBaseUrl()}/users/search?q=${encodeURIComponent(val)}`);
                         if (res2.ok) {
                             users = await res2.json();
                         }
@@ -1427,7 +1428,7 @@ export function renderEditorView(onLogout) {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:8080/api/docs/${docId}/share`, {
+            const res = await fetch(`${getApiBaseUrl()}/docs/${docId}/share`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1489,7 +1490,7 @@ export function renderEditorView(onLogout) {
         if (!docId || docId === 'default-room')
             return;
         try {
-            await fetch(`http://localhost:8080/api/docs/${docId}`, {
+            await fetch(`${getApiBaseUrl()}/docs/${docId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1527,7 +1528,7 @@ export function renderEditorView(onLogout) {
         autoSaveTimer = setTimeout(async () => {
             try {
                 const deltaData = JSON.stringify(doc.renderDelta());
-                const res = await fetch(`http://localhost:8080/api/docs/${docId}`, {
+                const res = await fetch(`${getApiBaseUrl()}/docs/${docId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1577,7 +1578,7 @@ export function renderEditorView(onLogout) {
             return;
         }
         try {
-            const res = await fetch(`http://localhost:8080/api/docs/${docId}`, {
+            const res = await fetch(`${getApiBaseUrl()}/docs/${docId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -1683,7 +1684,7 @@ export function renderEditorView(onLogout) {
         if (!targetDoc)
             return;
         try {
-            const res = await fetch(`http://localhost:8080/api/docs/${targetId}`, {
+            const res = await fetch(`${getApiBaseUrl()}/docs/${targetId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -1793,7 +1794,7 @@ export function renderEditorView(onLogout) {
     }
     async function fetchSidebarDocuments() {
         try {
-            const res = await fetch('http://localhost:8080/api/docs', {
+            const res = await fetch(`${getApiBaseUrl()}/docs`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -1813,7 +1814,7 @@ export function renderEditorView(onLogout) {
         if (docId && docId !== 'default-room') {
             try {
                 const deltaData = JSON.stringify(doc.renderDelta());
-                await fetch(`http://localhost:8080/api/docs/${docId}`, {
+                await fetch(`${getApiBaseUrl()}/docs/${docId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1850,7 +1851,7 @@ export function renderEditorView(onLogout) {
     }
     async function createAndSwitchNewDocument() {
         try {
-            const res = await fetch('http://localhost:8080/api/docs', {
+            const res = await fetch(`${getApiBaseUrl()}/docs`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
