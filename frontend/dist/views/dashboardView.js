@@ -634,6 +634,35 @@ export async function renderDashboardView(onLogout, onOpenDoc) {
         border-radius: 4px;
         margin-top: 4px;
       }
+
+      @media (max-width: 768px) {
+        .gdoc-dash-header {
+          padding: 8px 12px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .gdoc-dash-left {
+          min-width: auto;
+        }
+        .gdoc-dash-search-container {
+          order: 3;
+          width: 100%;
+          max-width: 100%;
+        }
+        .gdoc-dash-content-container {
+          padding: 16px 12px;
+        }
+        .gdoc-dash-grid {
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+          gap: 12px !important;
+        }
+        .gdoc-template-card {
+          width: 130px !important;
+        }
+        .gdoc-template-thumb {
+          height: 160px !important;
+        }
+      }
     </style>
 
     <div id="dash-drawer-backdrop" class="gdoc-drawer-backdrop"></div>

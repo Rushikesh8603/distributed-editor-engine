@@ -1078,6 +1078,188 @@ export function getEditorTemplate(username: string, userInitial: string): string
         align-items: center;
         gap: 12px;
       }
+
+      /* ========================================================= */
+      /* RESPONSIVE DESIGN (Zero visual changes on desktop screens) */
+      /* ========================================================= */
+      @media (max-width: 900px) {
+        .gdoc-header {
+          padding: 8px 12px 4px 10px;
+          height: auto;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .gdoc-header-left {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .gdoc-doc-name {
+          max-width: 170px;
+          font-size: 16px;
+        }
+
+        .gdoc-menu-row {
+          overflow-x: auto;
+          white-space: nowrap;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          max-width: 100vw;
+          padding-bottom: 2px;
+        }
+
+        .gdoc-menu-row::-webkit-scrollbar {
+          display: none;
+        }
+
+        .gdoc-header-right {
+          gap: 6px;
+        }
+
+        .gdoc-share-split-main span {
+          display: none;
+        }
+
+        .gdoc-share-split-main {
+          padding: 0 10px;
+        }
+
+        .gdoc-floating-toolbar {
+          width: calc(100% - 16px);
+          margin: 0 8px 6px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          flex-wrap: nowrap;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .gdoc-floating-toolbar::-webkit-scrollbar {
+          display: none;
+        }
+
+        .gdoc-main-workspace {
+          height: calc(100vh - 120px);
+        }
+
+        .gdoc-sidebar-left {
+          position: absolute;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          height: 100%;
+          z-index: 1000;
+          box-shadow: 2px 0 16px rgba(0, 0, 0, 0.2);
+          background: #FFFFFF;
+        }
+
+        .gdoc-companion-rail {
+          display: none !important;
+        }
+
+        .gdoc-companion-toggle-btn {
+          display: none !important;
+        }
+
+        .gdoc-scroll-viewport {
+          padding-top: 12px;
+          padding-left: 8px;
+          padding-right: 8px;
+        }
+
+        .gdoc-document-sheet {
+          width: 100% !important;
+          max-width: 816px;
+          min-height: calc(100vh - 140px);
+          padding: 36px 28px !important;
+          margin-bottom: 24px;
+        }
+
+        .gdoc-floating-outline-reopen-btn {
+          top: 8px;
+          left: 12px;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .gdoc-header {
+          padding: 6px 8px 2px;
+        }
+
+        .gdoc-logo-link {
+          width: 32px;
+          height: 32px;
+          margin-right: 2px;
+        }
+
+        .gdoc-logo-link svg {
+          width: 28px;
+          height: 28px;
+        }
+
+        .gdoc-doc-name {
+          max-width: 130px;
+          font-size: 15px;
+        }
+
+        .gdoc-status-cloud {
+          display: none !important;
+        }
+
+        .gdoc-gemini-sparkle-btn {
+          display: none !important;
+        }
+
+        .gdoc-round-action-btn:nth-child(2) {
+          display: none !important;
+        }
+
+        .gdoc-share-split-pill {
+          height: 34px;
+          border-radius: 17px;
+        }
+
+        .gdoc-avatar-circle {
+          width: 28px;
+          height: 28px;
+          font-size: 12px;
+        }
+
+        .gdoc-floating-toolbar {
+          width: calc(100% - 12px);
+          margin: 0 6px 4px;
+          padding: 0 6px;
+          min-height: 36px;
+        }
+
+        .gdoc-scroll-viewport {
+          padding-top: 8px;
+          padding-left: 0;
+          padding-right: 0;
+        }
+
+        .gdoc-document-sheet {
+          width: 100% !important;
+          border-left: none !important;
+          border-right: none !important;
+          box-shadow: none !important;
+          padding: 24px 16px !important;
+          margin-bottom: 12px;
+        }
+
+        .gdoc-starter-chips-container {
+          gap: 6px;
+          margin-bottom: 14px;
+        }
+
+        .gdoc-canvas-chip {
+          height: 28px;
+          font-size: 12px;
+          padding: 0 8px;
+        }
+      }
     </style>
 
     <header class="gdoc-header">

@@ -242,6 +242,10 @@ export function renderEditorView(onLogout: () => void) {
   document.getElementById('btn-collapse-sidebar')?.addEventListener('click', () => toggleSidebar(false));
   floatingOutlineBtn?.addEventListener('click', () => toggleSidebar(true));
 
+  if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+    toggleSidebar(false);
+  }
+
   function toggleCompanionRail() {
     if (!companionRail) return;
     const isCollapsed = companionRail.classList.toggle('collapsed');

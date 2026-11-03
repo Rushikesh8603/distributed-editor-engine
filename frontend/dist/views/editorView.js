@@ -189,6 +189,9 @@ export function renderEditorView(onLogout) {
     }
     document.getElementById('btn-collapse-sidebar')?.addEventListener('click', () => toggleSidebar(false));
     floatingOutlineBtn?.addEventListener('click', () => toggleSidebar(true));
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+        toggleSidebar(false);
+    }
     function toggleCompanionRail() {
         if (!companionRail)
             return;
