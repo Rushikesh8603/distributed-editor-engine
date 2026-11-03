@@ -2,14 +2,14 @@ import { state } from './state.js';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location.port === '3000') {
-    return 'http://localhost:8080/api';
+    return 'http://localhost/api';
   }
   return `${window.location.origin}/api`;
 }
 
 export function getWsBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location.port === '3000') {
-    return 'ws://localhost:8080';
+    return 'ws://localhost';
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}`;
