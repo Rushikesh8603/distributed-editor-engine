@@ -9,10 +9,10 @@ export function getApiBaseUrl(): string {
 
 export function getWsBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location.port === '3000') {
-    return 'ws://localhost';
+    return 'ws://localhost/ws';
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}`;
+  return `${protocol}//${window.location.host}/ws`;
 }
 
 export async function apiRequest(endpoint: string, method: string = 'GET', data?: any, token?: string | null) {
